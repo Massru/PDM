@@ -1,0 +1,25 @@
+name: football_coach
+description: App de estadísticas y gestión de equipo para entrenador de fútbol.
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.1          # Gestión de estado
+  shared_preferences: ^2.2.2 # Persistencia local de datos
+  uuid: ^4.3.3               # IDs únicos para jugadores y partidos
+  fl_chart: ^0.67.0          # Gráficas de estadísticas
+  google_fonts: ^6.1.0       # Tipografías
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
