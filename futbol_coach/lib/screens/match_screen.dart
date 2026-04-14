@@ -16,7 +16,7 @@ class MatchScreen extends StatefulWidget {
 }
 
 class _MatchScreenState extends State<MatchScreen> {
-  Player? _selectedPlayer;
+  Player? _selectedPlayer; // Jugador actualmente seleccionado en el campo
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +26,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
     if (match == null) return _buildNoMatch();
 
+    // Jugadores actualmente en campo (se actualiza con sustituciones)
     final onFieldPlayers = match.lineup
         .map((id) => playersProv.getById(id))
         .whereType<Player>()
@@ -36,13 +37,17 @@ class _MatchScreenState extends State<MatchScreen> {
       appBar: _buildAppBar(matchProv, match.opponent),
       body: Column(
         children: [
-          _buildMinuteBar(matchProv),
+          // Barra superior unificada: cronómetro + marcador en tiempo real
+          _buildTopBar(matchProv, match.opponent),
+          // Campo de fútbol con jugadores posicionados
           Expanded(
             flex: 3,
             child: _buildField(onFieldPlayers, matchProv),
           ),
+          // Panel de botones de estadísticas (solo si hay jugador seleccionado)
           if (_selectedPlayer != null)
             _buildStatPanel(matchProv, _selectedPlayer!),
+          // Barra inferior con botón de sustitución
           _buildActionButtons(matchProv, playersProv, match.lineup),
         ],
       ),
@@ -60,6 +65,8 @@ class _MatchScreenState extends State<MatchScreen> {
         ),
       ),
       actions: [
+        // Deshacer último evento registrado
+        // Si era un gol también resta del marcador
         IconButton(
           icon: const Icon(Icons.undo, color: AppColors.accentWarm),
           onPressed: () {
@@ -69,86 +76,240 @@ class _MatchScreenState extends State<MatchScreen> {
             );
           },
         ),
+        // Finalizar partido
         TextButton(
           onPressed: () => _showFinishDialog(prov),
           child: const Text(
             'FIN',
-            style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: AppColors.danger, fontWeight: FontWeight.bold),
           ),
         ),
       ],
     );
   }
 
-  // Barra con cronómetro real: play/pause + minuto actual y botones de ajuste
-  Widget _buildMinuteBar(MatchProvider prov) {
+  // Barra superior unificada:
+  // - Izquierda: cronómetro con botón play/pause
+  // - Centro: marcador en tiempo real con nuestros goles y los del rival
+  // - Derecha: botones de ajuste fino de minuto
+  Widget _buildTopBar(MatchProvider prov, String opponent) {
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          // Botón play/pause
+          // --- Cronómetro con play/pause ---
           GestureDetector(
-            onTap: () => prov.isRunning ? prov.pauseTimer() : prov.startTimer(),
+            onTap: () =>
+                prov.isRunning ? prov.pauseTimer() : prov.startTimer(),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 36, height: 36,
+              width: 34, height: 34,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: prov.isRunning
                     ? AppColors.accent.withOpacity(0.2)
                     : AppColors.accentWarm.withOpacity(0.2),
                 border: Border.all(
-                  color: prov.isRunning ? AppColors.accent : AppColors.accentWarm,
+                  color: prov.isRunning
+                      ? AppColors.accent
+                      : AppColors.accentWarm,
                 ),
               ),
               child: Icon(
                 prov.isRunning ? Icons.pause : Icons.play_arrow,
-                color: prov.isRunning ? AppColors.accent : AppColors.accentWarm,
-                size: 20,
+                color: prov.isRunning
+                    ? AppColors.accent
+                    : AppColors.accentWarm,
+                size: 18,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          // Muestra MM:SS (convertido de segundos internos)
-          Text(
-            prov.timerDisplay,
-            style: TextStyle(
-              color: prov.isRunning ? AppColors.accent : AppColors.textSecondary,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-              fontFeatures: const [FontFeature.tabularFigures()], // Evita que salte el ancho al cambiar dígitos
-            ),
-          ),
           const SizedBox(width: 8),
-          Text(
-            prov.isRunning ? 'EN JUEGO' : 'PARADO',
-            style: TextStyle(
-              color: prov.isRunning ? AppColors.accent : AppColors.textSecondary,
-              fontSize: 10,
-              letterSpacing: 1.2,
-            ),
+          // Tiempo en formato MM:SS
+          // FontFeature.tabularFigures evita que el texto salte de ancho al cambiar dígitos
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                prov.timerDisplay,
+                style: TextStyle(
+                  color: prov.isRunning
+                      ? AppColors.accent
+                      : AppColors.textSecondary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              Text(
+                prov.isRunning ? 'EN JUEGO' : 'PARADO',
+                style: TextStyle(
+                  color: prov.isRunning
+                      ? AppColors.accent
+                      : AppColors.textSecondary,
+                  fontSize: 8,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
           ),
+
           const Spacer(),
+
+          // --- Marcador central ---
+          _buildScoreboard(prov, opponent),
+
+          const Spacer(),
+
+          // --- Ajuste fino de minuto (±1 minuto) ---
           _minuteAdjustButton(prov, -1),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              'Ajustar',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-            ),
+          const SizedBox(width: 4),
+          const Text(
+            'min',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
           ),
+          const SizedBox(width: 4),
           _minuteAdjustButton(prov, 1),
         ],
       ),
     );
   }
 
+  // Marcador en tiempo real:
+  // - Nuestros goles (verde): se actualizan automáticamente al registrar evento gol
+  // - Goles del rival (rojo): botón + para sumar con tap, botón - con pulsación larga
+  Widget _buildScoreboard(MatchProvider prov, String opponent) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Nuestros goles (se actualiza automáticamente con eventos de gol)
+          Column(
+            children: [
+              const Text(
+                'Nosotros',
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 9),
+              ),
+              Text(
+                '${prov.goalsFor}',
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+
+          // Separador central
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              '-',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          // Goles del rival con controles manuales
+          Column(
+            children: [
+              // Nombre del rival truncado si es muy largo
+              Text(
+                opponent.length > 8
+                    ? '${opponent.substring(0, 8)}...'
+                    : opponent,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 9),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Botón restar gol rival: requiere pulsación larga para evitar errores accidentales
+                  GestureDetector(
+                    onLongPress: prov.goalsAgainst > 0
+                        ? () {
+                            prov.removeGoalAgainst();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Gol del rival deshecho'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        Icons.remove,
+                        size: 12,
+                        // Desactivamos visualmente el botón si no hay goles que restar
+                        color: prov.goalsAgainst > 0
+                            ? AppColors.danger
+                            : AppColors.textSecondary.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Contador de goles del rival
+                  Text(
+                    '${prov.goalsAgainst}',
+                    style: const TextStyle(
+                      color: AppColors.danger,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Botón sumar gol rival: tap normal
+                  GestureDetector(
+                    onTap: () => prov.addGoalAgainst(),
+                    child: Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        size: 12,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Botón de ajuste fino de minuto (±1 minuto = ±60 segundos internamente)
   Widget _minuteAdjustButton(MatchProvider prov, int delta) {
     return GestureDetector(
-      onTap: () => prov.adjustMinute(delta), // ← ahora llama a adjustMinute
+      onTap: () => prov.adjustMinute(delta),
       child: Container(
-        width: 28, height: 28,
+        width: 26, height: 26,
         decoration: BoxDecoration(
           color: AppColors.card,
           borderRadius: BorderRadius.circular(6),
@@ -156,30 +317,36 @@ class _MatchScreenState extends State<MatchScreen> {
         child: Center(
           child: Text(
             delta > 0 ? '+1' : '-1',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontSize: 10),
           ),
         ),
       ),
     );
   }
 
-  // Visualización táctica: campo con líneas y posiciones de jugadores
   Widget _buildField(List<Player> players, MatchProvider prov) {
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // Gradiente verde estilo cancha de fútbol
+        // Campo de fútbol con gradiente verde
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF1B5E20)],
+          colors: [
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF1B5E20),
+          ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white24, width: 1),
       ),
       child: Stack(
         children: [
+          // Líneas del campo dibujadas con CustomPainter
           _buildFieldLines(),
+          // Jugadores posicionados por líneas
           ..._buildPlayerPositions(players, prov),
         ],
       ),
@@ -193,9 +360,8 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  // Posiciona los jugadores en el campo según su posición (POR, DEF, MED, DEL)
-  // Usa Alignment para distribuirlos uniformemente por líneas
-  List<Widget> _buildPlayerPositions(List<Player> players, MatchProvider prov) {
+  List<Widget> _buildPlayerPositions(
+      List<Player> players, MatchProvider prov) {
     final keepers     = players.where((p) => p.position == 'POR').toList();
     final defenders   = players.where((p) => p.position == 'DEF').toList();
     final midfielders = players.where((p) => p.position == 'MED').toList();
@@ -203,18 +369,13 @@ class _MatchScreenState extends State<MatchScreen> {
 
     final widgets = <Widget>[];
 
-    // Función auxiliar para agregar una fila de jugadores alineados
-    // Calcula automáticamente las posiciones X e Y según el índice en la fila
+    // Distribuye una fila de jugadores horizontalmente en el campo
+    // topFraction: 0.0 = arriba del campo, 1.0 = abajo
     void addRowAligned(List<Player> row, double topFraction) {
       for (int i = 0; i < row.length; i++) {
-        // Calcula posición X: distribuye uniformemente en la horizontal
-        // Si hay un solo jugador (portero), lo pone al centro (0.0)
-        // Si hay múltiples, los distribuye de -1.0 a 1.0 uniformemente
         final xAlign = row.length == 1
             ? 0.0
             : -1.0 + (2 * i / (row.length - 1));
-        // Calcula posición Y: fila de la cancha
-        // topFraction 0.88 = casi arriba (portero), 0.18 = casi abajo (delanteros)
         final yAlign = -1.0 + 2 * topFraction;
         widgets.add(
           Align(
@@ -225,34 +386,30 @@ class _MatchScreenState extends State<MatchScreen> {
       }
     }
 
-    // Distribuye líneas tácticas: Portero → Defensas → Mediocampistas → Delanteros
-    // Los números (0.88, 0.68, etc) representan la fracción vertical en el campo
-    addRowAligned(keepers,     0.88);
-    addRowAligned(defenders,   0.68);
-    addRowAligned(midfielders, 0.45);
-    addRowAligned(forwards,    0.18);
+    addRowAligned(keepers,     0.88); // Portero - abajo
+    addRowAligned(defenders,   0.68); // Defensas
+    addRowAligned(midfielders, 0.45); // Centrocampistas
+    addRowAligned(forwards,    0.18); // Delanteros - arriba
 
     return widgets;
   }
 
-  // Crea el punto interactivo (círculo) del jugador en el campo
-  // Muestra: dorsal, nombre, tarjetas, y estado de selección
-  // Al pulsar, selecciona/deselecciona al jugador para ver sus estadísticas
+  // Círculo del jugador en el campo con badges de tarjetas.
+  // Al pulsar selecciona el jugador y muestra el panel de estadísticas.
   Widget _playerDot(Player player, MatchProvider prov) {
     final isSelected = _selectedPlayer?.id == player.id;
-    final posColor   = positionColors[player.position] ?? AppColors.accent; // Color por posición
+    final posColor   = positionColors[player.position] ?? AppColors.accent;
     final yellows    = prov.getStatForPlayer(player.id, EventType.yellowCard);
     final reds       = prov.getStatForPlayer(player.id, EventType.redCard);
 
     return GestureDetector(
-      // Al tocar este punto, alterna la selección del jugador
       onTap: () => setState(() {
-        _selectedPlayer = isSelected ? null : player; // Toggle
+        // Toggle: si ya estaba seleccionado lo deselecciona
+        _selectedPlayer = isSelected ? null : player;
       }),
       child: AnimatedContainer(
-        // Anima suavemente el tamaño y sombra al cambiar de estado
         duration: const Duration(milliseconds: 200),
-        width:  isSelected ? 54 : 44, // Más grande si está seleccionado
+        width:  isSelected ? 54 : 44,
         height: isSelected ? 54 : 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -262,12 +419,12 @@ class _MatchScreenState extends State<MatchScreen> {
             width: isSelected ? 3 : 1.5,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: posColor.withOpacity(0.6), blurRadius: 12)]
+              ? [BoxShadow(
+                  color: posColor.withOpacity(0.6), blurRadius: 12)]
               : [],
         ),
         child: Stack(
           children: [
-            // Centro: dorsal y nombre del jugador
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -280,16 +437,16 @@ class _MatchScreenState extends State<MatchScreen> {
                       fontSize: 14,
                     ),
                   ),
-                  // Primer nombre del jugador
                   Text(
                     player.name.split(' ').first,
-                    style: const TextStyle(color: Colors.white70, fontSize: 7),
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 7),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            // Esquina superior derecha: tarjeta amarilla (si la tiene)
+            // Badge amarilla (esquina superior derecha)
             if (yellows > 0)
               Positioned(
                 top: 0, right: 0,
@@ -302,12 +459,13 @@ class _MatchScreenState extends State<MatchScreen> {
                   child: Center(
                     child: Text(
                       '$yellows',
-                      style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 7, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ),
-            // Esquina superior izquierda: tarjeta roja (si la tiene)
+            // Badge roja (esquina superior izquierda)
             if (reds > 0)
               Positioned(
                 top: 0, left: 0,
@@ -325,16 +483,18 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  // Panel con estadísticas del jugador seleccionado
-  // Muestra resumen rápido y botones para registrar eventos
+  // Panel inferior con los botones de estadísticas del jugador seleccionado.
+  // Si el jugador es portero, se muestra el botón de parada además de los comunes.
+  // Scroll horizontal para acomodar todos los botones.
   Widget _buildStatPanel(MatchProvider prov, Player player) {
+    final isKeeper = player.position == 'POR';
+
     return Container(
       padding: const EdgeInsets.all(12),
       color: AppColors.card,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Encabezado: dorsal, nombre, y mini-estadísticas
           Row(
             children: [
               const Icon(Icons.person, color: AppColors.accent, size: 16),
@@ -347,19 +507,30 @@ class _MatchScreenState extends State<MatchScreen> {
                 ),
               ),
               const Spacer(),
-              // Mini-resumen: goles, tarjetas amarillas y rojas
+              // Resumen rápido de las stats más importantes del partido
               _miniStat('⚽', prov.getStatForPlayer(player.id, EventType.goal)),
+              // Para porteros mostramos paradas en el resumen rápido
+              if (isKeeper)
+                _miniStat('🧤', prov.getStatForPlayer(player.id, EventType.save)),
               _miniStat('🟡', prov.getStatForPlayer(player.id, EventType.yellowCard)),
               _miniStat('🔴', prov.getStatForPlayer(player.id, EventType.redCard)),
             ],
           ),
           const SizedBox(height: 8),
-          // Lista horizontal de StatButtons para registrar cada tipo de evento
-          // Scroll horizontal si no caben todos en la pantalla
+          // Scroll horizontal para todos los botones de estadísticas
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                // Botón de parada: SOLO visible para porteros y siempre primero
+                if (isKeeper)
+                  StatButton(
+                    label: 'Parada',
+                    icon: Icons.back_hand,
+                    color: const Color(0xFF80DEEA),
+                    count: prov.getStatForPlayer(player.id, EventType.save),
+                    onTap: () => prov.addEvent(player.id, EventType.save),
+                  ),
                 StatButton(
                   label: 'Pérdida',
                   icon: Icons.sports_soccer,
@@ -393,6 +564,7 @@ class _MatchScreenState extends State<MatchScreen> {
                   icon: Icons.sports_soccer,
                   color: AppColors.accentWarm,
                   count: prov.getStatForPlayer(player.id, EventType.goal),
+                  // Al registrar un gol también actualiza el marcador automáticamente
                   onTap: () => prov.addEvent(player.id, EventType.goal),
                 ),
                 StatButton(
@@ -402,26 +574,29 @@ class _MatchScreenState extends State<MatchScreen> {
                   count: prov.getStatForPlayer(player.id, EventType.assist),
                   onTap: () => prov.addEvent(player.id, EventType.assist),
                 ),
-                StatButton(
-                  label: 'Centro',
-                  icon: Icons.sports,
-                  color: const Color(0xFFCE93D8),
-                  count: prov.getStatForPlayer(player.id, EventType.cross),
-                  onTap: () => prov.addEvent(player.id, EventType.cross),
-                ),
+                // Ocultamos centros y tiros para porteros ya que no son relevantes
+                if (!isKeeper) ...[
+                  StatButton(
+                    label: 'Centro',
+                    icon: Icons.sports,
+                    color: const Color(0xFFCE93D8),
+                    count: prov.getStatForPlayer(player.id, EventType.cross),
+                    onTap: () => prov.addEvent(player.id, EventType.cross),
+                  ),
+                  StatButton(
+                    label: 'Tiro',
+                    icon: Icons.gps_fixed,
+                    color: const Color(0xFFFF8A65),
+                    count: prov.getStatForPlayer(player.id, EventType.shot),
+                    onTap: () => prov.addEvent(player.id, EventType.shot),
+                  ),
+                ],
                 StatButton(
                   label: 'Recuperación',
                   icon: Icons.shield,
                   color: const Color(0xFF80CBC4),
                   count: prov.getStatForPlayer(player.id, EventType.recovery),
                   onTap: () => prov.addEvent(player.id, EventType.recovery),
-                ),
-                StatButton(
-                  label: 'Tiro',
-                  icon: Icons.gps_fixed,
-                  color: const Color(0xFFFF8A65),
-                  count: prov.getStatForPlayer(player.id, EventType.shot),
-                  onTap: () => prov.addEvent(player.id, EventType.shot),
                 ),
               ],
             ),
@@ -431,19 +606,17 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  // Muestra un mini-stat: emoji + número
   Widget _miniStat(String emoji, int count) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      // Muestra el emoji seguido del contador
       child: Text(
         '$emoji $count',
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        style: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 12),
       ),
     );
   }
 
-  // Barra de botones inferiores: solo botón de sustitución
   Widget _buildActionButtons(
     MatchProvider prov,
     PlayersProvider playersProv,
@@ -455,20 +628,20 @@ class _MatchScreenState extends State<MatchScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Botón para cambair jugador (sustitución)
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.card),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.card),
             icon: const Icon(Icons.swap_vert, color: Colors.white),
-            label: const Text('Sustitución', style: TextStyle(color: Colors.white)),
-            onPressed: () => _showSubstitutionDialog(prov, playersProv, lineup),
+            label: const Text('Sustitución',
+                style: TextStyle(color: Colors.white)),
+            onPressed: () =>
+                _showSubstitutionDialog(prov, playersProv, lineup),
           ),
         ],
       ),
     );
   }
 
-  // Muestra el diálogo de sustitución
-  // El usuario elige primero quién sale y luego quién entra
   void _showSubstitutionDialog(
     MatchProvider prov,
     PlayersProvider playersProv,
@@ -477,22 +650,22 @@ class _MatchScreenState extends State<MatchScreen> {
     showDialog(
       context: context,
       builder: (_) => SubstitutionDialog(
-        onFieldPlayerIds: lineup, // Jugadores que están en cancha
-        allPlayers: playersProv.players, // Todos los jugadores
-        // Callback cuando se confirma la sustitución
+        onFieldPlayerIds: lineup,
+        allPlayers: playersProv.players,
         onSubstitution: (outId, inId) {
-          // Registra dos eventos: salida del jugador y entrada del otro
-          prov.addEvent(outId, EventType.substitutionOut, relatedPlayerId: inId);
-          prov.addEvent(inId,  EventType.substitutionIn,  relatedPlayerId: outId);
+          prov.addEvent(outId, EventType.substitutionOut,
+              relatedPlayerId: inId);
+          prov.addEvent(inId, EventType.substitutionIn,
+              relatedPlayerId: outId);
         },
       ),
     );
   }
 
-  // Diálogo para finaliziar el partido
-  // Permite ingresar goles a favor y en contra
+  // Diálogo de finalizar partido.
+  // Ya no pedimos el resultado manualmente porque lo tenemos del marcador en vivo.
+  // Solo confirmamos mostrando el resultado actual.
   void _showFinishDialog(MatchProvider prov) {
-    int goalsFor = 0, goalsAgainst = 0;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -501,28 +674,30 @@ class _MatchScreenState extends State<MatchScreen> {
           'Finalizar Partido',
           style: TextStyle(color: AppColors.textPrimary),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Campo para goles propios
-            _goalInput('Goles a favor',   (v) => goalsFor = v),
-            const SizedBox(height: 8),
-            // Campo para goles del rival
-            _goalInput('Goles en contra', (v) => goalsAgainst = v),
-          ],
+        content: Text(
+          'Resultado final: ${prov.goalsFor} - ${prov.goalsAgainst}\n\n¿Confirmas que quieres finalizar el partido?',
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger),
             onPressed: () {
-              Navigator.pop(context);
-              prov.finishMatch(goalsFor, goalsAgainst);
+              Navigator.pop(context); // Cierra el diálogo
+              prov.finishMatch();
               _applyStatsToPlayers(prov);
-              Navigator.pop(context);
+              // Vuelve al inicio eliminando toda la pila de navegación
+              // para que el botón atrás no vuelva al partido finalizado
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/',
+                (route) => false,
+              );
             },
             child: const Text('Confirmar'),
           ),
@@ -531,30 +706,21 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  Widget _goalInput(String label, Function(int) onChanged) {
-    return TextField(
-      keyboardType: TextInputType.number,
-      style: const TextStyle(color: AppColors.textPrimary),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
-      ),
-      onChanged: (v) => onChanged(int.tryParse(v) ?? 0),
-    );
-  }
-
+  // Aplica las estadísticas del partido finalizado a cada jugador participante.
+  // Incluye titulares y sustitutos que entraron durante el partido.
   void _applyStatsToPlayers(MatchProvider prov) {
     final playersProv = context.read<PlayersProvider>();
     final match = prov.currentMatch;
     if (match == null) return;
-  
+
+    // Incluimos titulares y sustitutos que entraron
     final participantIds = <String>{
       ...match.lineup,
       ...match.events
           .where((e) => e.type == EventType.substitutionIn)
           .map((e) => e.playerId),
     };
-  
+
     for (final id in participantIds) {
       final stats = match.statsForPlayer(id);
       playersProv.applyMatchStats(
@@ -569,6 +735,7 @@ class _MatchScreenState extends State<MatchScreen> {
         crosses:       stats[EventType.cross]      ?? 0,
         recoveries:    stats[EventType.recovery]   ?? 0,
         shots:         stats[EventType.shot]       ?? 0,
+        saves:         stats[EventType.save]       ?? 0,
       );
     }
   }
@@ -587,6 +754,7 @@ class _MatchScreenState extends State<MatchScreen> {
   }
 }
 
+// Pinta las líneas del campo sobre el fondo verde usando CustomPainter
 class _FieldLinesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -595,16 +763,19 @@ class _FieldLinesPainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style       = PaintingStyle.stroke;
 
+    // Línea central
     canvas.drawLine(
       Offset(0, size.height / 2),
       Offset(size.width, size.height / 2),
       paint,
     );
+    // Círculo central
     canvas.drawCircle(
       Offset(size.width / 2, size.height / 2),
       size.width * 0.15,
       paint,
     );
+    // Área grande propia (abajo)
     canvas.drawRect(
       Rect.fromLTWH(
         size.width * 0.2, size.height * 0.78,
@@ -612,6 +783,7 @@ class _FieldLinesPainter extends CustomPainter {
       ),
       paint,
     );
+    // Área grande rival (arriba)
     canvas.drawRect(
       Rect.fromLTWH(
         size.width * 0.2, 0,

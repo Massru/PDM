@@ -1,13 +1,12 @@
 import 'match_event.dart';
 
 // Modelo de un partido completo.
-// Contiene la alineación inicial, los eventos y el resultado.
-
+// Contiene la alineación inicial, el historial de eventos y el resultado final.
 class Match {
   final String id;
   final DateTime date;
-  final String opponent;       // Rival
-  final List<String> lineup;   // IDs de los 11 titulares
+  final String opponent;       // Nombre del equipo rival
+  final List<String> lineup;   // IDs de los jugadores en campo (se actualiza con sustituciones)
   final List<MatchEvent> events;
   int goalsFor;
   int goalsAgainst;
@@ -24,36 +23,29 @@ class Match {
     this.isFinished = false,
   }) : events = events ?? [];
 
-  // Cuenta eventos de cada tipo para un jugador en este partido
-  // Ejemplo: {ballLoss: 2, dribble: 3, goal: 1}
-  // Usa un mapa que se va actualizando conforme itera los eventos
+  // Devuelve un mapa con el recuento de cada tipo de evento
+  // para un jugador específico en este partido
   Map<EventType, int> statsForPlayer(String playerId) {
-    final stats = <EventType, int>{}; // Mapa vacío: tipo -> contador
+    final stats = <EventType, int>{};
     for (final e in events) {
       if (e.playerId == playerId) {
-        // stats[type] ?? 0 toma valor actual o 0 si no existe, luego suma 1
         stats[e.type] = (stats[e.type] ?? 0) + 1;
       }
     }
     return stats;
   }
 
-  // Convierte el Match a un Map que puede ser serializado a JSON
-  // toIso8601String() convierte DateTime a string formato internacional (2024-03-27T15:30:00.000Z)
   Map<String, dynamic> toJson() => {
     'id': id,
-    'date': date.toIso8601String(), // Convierte DateTime a string ISO
+    'date': date.toIso8601String(),
     'opponent': opponent,
-    'lineup': lineup, // Lista de IDs de jugadores
-    'events': events.map((e) => e.toJson()).toList(), // Serializa cada evento
+    'lineup': lineup,
+    'events': events.map((e) => e.toJson()).toList(),
     'goalsFor': goalsFor,
     'goalsAgainst': goalsAgainst,
     'isFinished': isFinished,
   };
 
-  // Reconstruye un Match desde un Map JSON
-  // DateTime.parse convierte string ISO a DateTime
-  // Cada evento se deserializa recursivamente con MatchEvent.fromJson
   factory Match.fromJson(Map<String, dynamic> json) => Match(
     id: json['id'],
     date: DateTime.parse(json['date']),
@@ -62,8 +54,8 @@ class Match {
     events: (json['events'] as List)
         .map((e) => MatchEvent.fromJson(e))
         .toList(),
-    goalsFor: json['goalsFor'] ?? 0,
+    goalsFor:     json['goalsFor']     ?? 0,
     goalsAgainst: json['goalsAgainst'] ?? 0,
-    isFinished: json['isFinished'] ?? false,
+    isFinished:   json['isFinished']   ?? false,
   );
 }

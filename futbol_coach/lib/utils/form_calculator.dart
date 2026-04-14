@@ -1,40 +1,54 @@
-// lib/utils/form_calculator.dart
-
-import 'package:flutter/material.dart';  // ← añade este import
+import 'package:flutter/material.dart';
 import '../models/player.dart';
 
+// Calcula el "estado de forma" de un jugador de 0 a 100.
+// La fórmula pondera estadísticas positivas y negativas
+// normalizadas por el número de partidos jugados.
+// Para porteros, las paradas también suman positivamente.
 class FormCalculator {
-  // Cálculo de forma del jugador (escala 0-100)
-  // Basado en estadísticas acumuladas y promediadas por partido
+
+  /// Devuelve una puntuación de 0 a 100
   static double calculate(Player p) {
-    if (p.totalMatches == 0) return 50.0; // Jugador sin partidos: forma neutra
+    // Sin partidos jugados devolvemos 50 (neutro)
+    if (p.totalMatches == 0) return 50.0;
 
-    // Normaliza las estadísticas dividiendo entre número de partidos jugados
-    final dribblesPerMatch = p.dribbles / p.totalMatches;
-    final goalsPerMatch    = p.goals / p.totalMatches;
-    final assistsPerMatch  = p.assists / p.totalMatches;
-    final lossesPerMatch   = p.ballLosses / p.totalMatches;
-    final yellowsPerMatch  = p.yellowCards / p.totalMatches;
-    final redsPerMatch     = p.redCards / p.totalMatches;
+    // Normalizamos cada métrica por partidos jugados
+    final dribblesPerMatch   = p.dribbles    / p.totalMatches;
+    final goalsPerMatch      = p.goals       / p.totalMatches;
+    final assistsPerMatch    = p.assists     / p.totalMatches;
+    final lossesPerMatch     = p.ballLosses  / p.totalMatches;
+    final yellowsPerMatch    = p.yellowCards / p.totalMatches;
+    final redsPerMatch       = p.redCards    / p.totalMatches;
+    final recoveriesPerMatch = p.recoveries  / p.totalMatches;
+    final shotsPerMatch      = p.shots       / p.totalMatches;
+    final crossesPerMatch    = p.crosses     / p.totalMatches;
+    final savesPerMatch      = p.saves       / p.totalMatches;
 
-    double score = 50.0; // Base neutral
+    // Partimos de 50 puntos base
+    double score = 50.0;
 
-    // Añade puntos positivos
-    score += dribblesPerMatch * 8.0;   // Cada regate promedio suma 8 puntos
-    score += goalsPerMatch    * 15.0;  // Cada gol promedio suma 15 puntos
-    score += assistsPerMatch  * 10.0;  // Cada asistencia promedio suma 10 puntos
-    
-    // Resta puntos negativos
-    score -= lossesPerMatch   * 5.0;   // Cada pérdida promedio resta 5 puntos
-    score -= yellowsPerMatch  * 8.0;   // Cada tarjeta amarilla promedio resta 8 puntos
-    score -= redsPerMatch     * 20.0;  // Cada tarjeta roja promedio resta 20 puntos
+    // POSITIVOS - cada métrica suma según su impacto en el juego
+    score += goalsPerMatch      * 15.0; // Goles: máximo impacto
+    score += assistsPerMatch    * 10.0; // Asistencias: muy valoradas
+    score += dribblesPerMatch   *  8.0; // Regates: alto impacto técnico
+    score += recoveriesPerMatch *  6.0; // Recuperaciones: trabajo defensivo
+    score += shotsPerMatch      *  4.0; // Tiros: intención ofensiva
+    score += crossesPerMatch    *  3.0; // Centros: contribución ofensiva
 
-    // Asegura que quede en rango 0-100
+    // Paradas: solo suman para porteros (el resto siempre tendrá 0)
+    // Peso alto porque una buena parada equivale a evitar un gol
+    score += savesPerMatch      * 10.0;
+
+    // NEGATIVOS - penalizamos comportamientos perjudiciales
+    score -= lossesPerMatch     *  5.0; // Pérdidas: penalización moderada
+    score -= yellowsPerMatch    *  8.0; // Amarilla: penaliza bastante
+    score -= redsPerMatch       * 20.0; // Roja: penalización severa
+
+    // Limitamos el resultado entre 0 y 100
     return score.clamp(0.0, 100.0);
   }
 
-  // Retorna una etiqueta descriptiva según la puntuación
-  // Usado para mostrar "Ítem", "Buena", etc. en la UI
+  /// Etiqueta textual según la puntuación
   static String label(double score) {
     if (score >= 80) return 'Excelente';
     if (score >= 65) return 'Buena';
@@ -43,9 +57,8 @@ class FormCalculator {
     return 'Mala';
   }
 
-  // Retorna el color asociado a cada nivel de forma
-  // Desde verde (excelente) hasta rojo (mala)
-  static Color color(double score) {  // ← ahora Color está definido
+  /// Color asociado al estado de forma
+  static Color color(double score) {
     if (score >= 80) return const Color(0xFF00E676);
     if (score >= 65) return const Color(0xFF69F0AE);
     if (score >= 50) return const Color(0xFFFFB300);

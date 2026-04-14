@@ -5,13 +5,8 @@ import '../providers/match_provider.dart';
 import '../models/player.dart';
 import '../utils/constants.dart';
 import '../utils/form_calculator.dart';
+import '../utils/pdf_generator.dart'; // ← para exportar ranking de plantilla
 import '../widgets/player_form_badge.dart';
-
-// Pantalla principal:
-// - Resumen de plantilla ordenada por forma
-// - Botón para crear nueva alineación
-// - Banner si hay un partido activo
-// - Opciones para añadir jugadores e ir al historial
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -34,7 +29,8 @@ class HomeScreen extends StatelessWidget {
                 color: AppColors.accent.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.sports_soccer, color: AppColors.accent, size: 20),
+              child: const Icon(Icons.sports_soccer,
+                  color: AppColors.accent, size: 20),
             ),
             const SizedBox(width: 10),
             const Text(
@@ -48,13 +44,24 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Botón historial
+          // Exportar ranking de forma de toda la plantilla a PDF
           IconButton(
-            icon: const Icon(Icons.history, color: AppColors.textSecondary),
-            tooltip: 'Historial',
-            onPressed: () => Navigator.pushNamed(context, '/history'),
+            icon: const Icon(Icons.picture_as_pdf,
+                color: AppColors.accentWarm),
+            tooltip: 'Exportar ranking',
+            onPressed: () => PdfGenerator.exportSquadRanking(
+              context.read<PlayersProvider>().players,
+            ),
           ),
-          // Botón añadir jugador (ya existente)
+          // Historial de partidos
+          IconButton(
+            icon: const Icon(Icons.history,
+                color: AppColors.textSecondary),
+            tooltip: 'Historial',
+            onPressed: () =>
+                Navigator.pushNamed(context, '/history'),
+          ),
+          // Añadir jugador a la plantilla
           IconButton(
             icon: const Icon(Icons.person_add, color: AppColors.accent),
             tooltip: 'Añadir jugador',
@@ -64,14 +71,14 @@ class HomeScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Banner visible si hay un partido en curso (no finalizado)
+          // Banner de partido activo (solo visible si hay partido en curso)
           if (matchProv.hasActiveMatch)
             _ActiveMatchBanner(matchProv: matchProv),
 
-          // --- Botón de nueva alineación ---
+          // Botón para crear nueva alineación e iniciar partido
           _buildLineupButton(context),
 
-          // --- Separador ---
+          // Cabecera de la sección de plantilla
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
@@ -88,21 +95,23 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${playersProv.players.length} jugadores',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11),
                 ),
                 const Spacer(),
-                // Ordenar por forma
-                const Icon(Icons.trending_up, color: AppColors.accent, size: 14),
+                const Icon(Icons.trending_up,
+                    color: AppColors.accent, size: 14),
                 const SizedBox(width: 4),
                 const Text(
                   'Por forma',
-                  style: TextStyle(color: AppColors.accent, fontSize: 11),
+                  style:
+                      TextStyle(color: AppColors.accent, fontSize: 11),
                 ),
               ],
             ),
           ),
 
-          // --- Lista de jugadores ---
+          // Lista de jugadores agrupados por posición
           Expanded(
             child: playersProv.players.isEmpty
                 ? _buildEmptyState()
@@ -119,7 +128,8 @@ class HomeScreen extends StatelessWidget {
       child: GestureDetector(
         onTap: () => Navigator.pushNamed(context, '/lineup'),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -144,7 +154,7 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Nueva Alineación',
+                    'Nuevo Partido',
                     style: TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.bold,
@@ -153,12 +163,14 @@ class HomeScreen extends StatelessWidget {
                   ),
                   Text(
                     'Seleccionar 11 y arrancar partido',
-                    style: TextStyle(color: Colors.black54, fontSize: 12),
+                    style:
+                        TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ],
               ),
               Spacer(),
-              Icon(Icons.arrow_forward_ios, color: Colors.black54, size: 14),
+              Icon(Icons.arrow_forward_ios,
+                  color: Colors.black54, size: 14),
             ],
           ),
         ),
@@ -167,12 +179,12 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildPlayerList(BuildContext context, PlayersProvider prov) {
-    // Ordenamos por estado de forma descendente
-    final sorted = [...prov.players]..sort((a, b) {
-      return FormCalculator.calculate(b).compareTo(FormCalculator.calculate(a));
-    });
+    // Ordenamos toda la plantilla por estado de forma descendente
+    final sorted = [...prov.players]..sort((a, b) =>
+        FormCalculator.calculate(b)
+            .compareTo(FormCalculator.calculate(a)));
 
-    // Agrupamos por posición para mostrar secciones
+    // Agrupamos por posición respetando el orden definido en constants.dart
     final groups = <String, List<Player>>{};
     for (final pos in positions) {
       final inPos = sorted.where((p) => p.position == pos).toList();
@@ -183,7 +195,7 @@ class HomeScreen extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 20),
       children: [
         for (final entry in groups.entries) ...[
-          // Cabecera de posición
+          // Cabecera de sección por posición
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
@@ -199,7 +211,8 @@ class HomeScreen extends StatelessWidget {
                 Text(
                   _positionLabel(entry.key),
                   style: TextStyle(
-                    color: positionColors[entry.key] ?? AppColors.accent,
+                    color:
+                        positionColors[entry.key] ?? AppColors.accent,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -208,12 +221,14 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Jugadores de esa posición
+          // Tiles de jugadores de esa posición
           ...entry.value.map((p) => _PlayerTile(
-            player: p,
-            onTap: () => Navigator.pushNamed(context, '/player', arguments: p.id),
-            onDelete: () => _confirmDelete(context, prov, p),
-          )),
+                player: p,
+                onTap: () => Navigator.pushNamed(context, '/player',
+                    arguments: p.id),
+                onDelete: () =>
+                    _confirmDelete(context, prov, p),
+              )),
         ],
       ],
     );
@@ -224,17 +239,21 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.group_off, color: AppColors.textSecondary.withOpacity(0.3), size: 64),
+          Icon(Icons.group_off,
+              color: AppColors.textSecondary.withOpacity(0.3),
+              size: 64),
           const SizedBox(height: 16),
           const Text(
             'Sin jugadores aún',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style: TextStyle(
+                color: AppColors.textSecondary, fontSize: 16),
           ),
           const SizedBox(height: 8),
           const Text(
             'Pulsa el + de arriba para añadir\nlos jugadores de tu plantilla',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: TextStyle(
+                color: AppColors.textSecondary, fontSize: 13),
           ),
         ],
       ),
@@ -251,8 +270,6 @@ class HomeScreen extends StatelessWidget {
     return labels[pos] ?? pos;
   }
 
-  // ---- Diálogo para añadir jugador ----
-
   void _showAddPlayerDialog(BuildContext context) {
     final nameCtrl   = TextEditingController();
     final numberCtrl = TextEditingController();
@@ -263,14 +280,11 @@ class HomeScreen extends StatelessWidget {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.card,
-          title: const Text(
-            'Nuevo Jugador',
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
+          title: const Text('Nuevo Jugador',
+              style: TextStyle(color: AppColors.textPrimary)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Nombre
               TextField(
                 controller: nameCtrl,
                 style: const TextStyle(color: AppColors.textPrimary),
@@ -278,7 +292,6 @@ class HomeScreen extends StatelessWidget {
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 12),
-              // Dorsal
               TextField(
                 controller: numberCtrl,
                 style: const TextStyle(color: AppColors.textPrimary),
@@ -286,25 +299,29 @@ class HomeScreen extends StatelessWidget {
                 decoration: _inputDeco('Dorsal'),
               ),
               const SizedBox(height: 12),
-              // Posición
+              // Selector de posición con botones visuales
               Row(
                 children: positions.map((pos) {
                   final isSelected = pos == selectedPos;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => setDialogState(() => selectedPos = pos),
+                      onTap: () =>
+                          setDialogState(() => selectedPos = pos),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         margin: const EdgeInsets.only(right: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? (positionColors[pos] ?? AppColors.accent).withOpacity(0.25)
+                              ? (positionColors[pos] ?? AppColors.accent)
+                                  .withOpacity(0.25)
                               : AppColors.surface,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: isSelected
-                                ? (positionColors[pos] ?? AppColors.accent)
+                                ? (positionColors[pos] ??
+                                    AppColors.accent)
                                 : Colors.transparent,
                           ),
                         ),
@@ -313,9 +330,12 @@ class HomeScreen extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: isSelected
-                                ? (positionColors[pos] ?? AppColors.accent)
+                                ? (positionColors[pos] ??
+                                    AppColors.accent)
                                 : AppColors.textSecondary,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             fontSize: 12,
                           ),
                         ),
@@ -329,18 +349,26 @@ class HomeScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+              child: const Text('Cancelar',
+                  style:
+                      TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent),
               onPressed: () {
-                final name   = nameCtrl.text.trim();
-                final number = int.tryParse(numberCtrl.text.trim()) ?? 0;
+                final name =
+                    nameCtrl.text.trim();
+                final number =
+                    int.tryParse(numberCtrl.text.trim()) ?? 0;
                 if (name.isEmpty || number == 0) return;
-                context.read<PlayersProvider>().addPlayer(name, number, selectedPos);
+                context
+                    .read<PlayersProvider>()
+                    .addPlayer(name, number, selectedPos);
                 Navigator.pop(context);
               },
-              child: const Text('Añadir', style: TextStyle(color: Colors.black87)),
+              child: const Text('Añadir',
+                  style: TextStyle(color: Colors.black87)),
             ),
           ],
         ),
@@ -348,23 +376,29 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, PlayersProvider prov, Player player) {
+  void _confirmDelete(
+      BuildContext context, PlayersProvider prov, Player player) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: const Text('Eliminar jugador', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('Eliminar jugador',
+            style: TextStyle(color: AppColors.textPrimary)),
         content: Text(
           '¿Seguro que quieres eliminar a ${player.name}?\nSe perderán todas sus estadísticas.',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style:
+              const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancelar',
+                style:
+                    TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger),
             onPressed: () {
               prov.removePlayer(player.id);
               Navigator.pop(context);
@@ -377,18 +411,19 @@ class HomeScreen extends StatelessWidget {
   }
 
   InputDecoration _inputDeco(String label) => InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: AppColors.textSecondary),
-    filled: true,
-    fillColor: AppColors.surface,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide.none,
-    ),
-  );
+        labelText: label,
+        labelStyle:
+            const TextStyle(color: AppColors.textSecondary),
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+      );
 }
 
-// ---- Widget tile de jugador en la lista ----
+// ---- Tile de jugador en la lista principal ----
 
 class _PlayerTile extends StatelessWidget {
   final Player player;
@@ -418,13 +453,16 @@ class _PlayerTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         color: AppColors.danger.withOpacity(0.2),
-        child: const Icon(Icons.delete_outline, color: AppColors.danger),
+        child: const Icon(Icons.delete_outline,
+            color: AppColors.danger),
       ),
       child: InkWell(
         onTap: onTap,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          margin: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 3),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
@@ -437,7 +475,8 @@ class _PlayerTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: posColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: posColor.withOpacity(0.4)),
+                  border:
+                      Border.all(color: posColor.withOpacity(0.4)),
                 ),
                 child: Center(
                   child: Text(
@@ -451,7 +490,6 @@ class _PlayerTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              // Nombre y posición
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,10 +512,11 @@ class _PlayerTile extends StatelessWidget {
                   ],
                 ),
               ),
-              // Badge de forma
+              // Badge de estado de forma
               PlayerFormBadge(score: form),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 16),
+              const Icon(Icons.chevron_right,
+                  color: AppColors.textSecondary, size: 16),
             ],
           ),
         ),
@@ -498,15 +537,16 @@ class _ActiveMatchBanner extends StatelessWidget {
       onTap: () => Navigator.pushNamed(context, '/match'),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.danger.withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.danger.withOpacity(0.5)),
+          border:
+              Border.all(color: AppColors.danger.withOpacity(0.5)),
         ),
         child: Row(
           children: [
-            // Punto parpadeante de "en vivo"
             const _LiveDot(),
             const SizedBox(width: 10),
             Column(
@@ -522,13 +562,15 @@ class _ActiveMatchBanner extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'vs ${matchProv.currentMatch?.opponent ?? ''} · Min ${matchProv.currentMinute}\'',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  'vs ${matchProv.currentMatch?.opponent ?? ''} · ${matchProv.timerDisplay}',
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 13),
                 ),
               ],
             ),
             const Spacer(),
-            const Icon(Icons.arrow_forward_ios, color: AppColors.danger, size: 14),
+            const Icon(Icons.arrow_forward_ios,
+                color: AppColors.danger, size: 14),
           ],
         ),
       ),
@@ -536,14 +578,16 @@ class _ActiveMatchBanner extends StatelessWidget {
   }
 }
 
-// Punto animado "live"
+// Punto rojo parpadeante que indica partido en vivo
 class _LiveDot extends StatefulWidget {
   const _LiveDot();
+
   @override
   State<_LiveDot> createState() => _LiveDotState();
 }
 
-class _LiveDotState extends State<_LiveDot> with SingleTickerProviderStateMixin {
+class _LiveDotState extends State<_LiveDot>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
 
   @override
@@ -556,7 +600,10 @@ class _LiveDotState extends State<_LiveDot> with SingleTickerProviderStateMixin 
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'utils/constants.dart';
 import 'screens/home_screen.dart';
 import 'screens/match_screen.dart';
 import 'screens/lineup_screen.dart';
@@ -16,14 +15,14 @@ class FootballCoachApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.background,
+        scaffoldBackgroundColor: const Color(0xFF0A1628),
         colorScheme: const ColorScheme.dark(
-          primary: AppColors.accent,
-          surface: AppColors.surface,
+          primary: Color(0xFF00E676),
+          surface: Color(0xFF132040),
         ),
-        // Fuente global (requiere google_fonts o definir en pubspec)
         fontFamily: 'Roboto',
       ),
+      // Rutas nombradas de la app
       initialRoute: '/',
       routes: {
         '/':        (_) => const HomeScreen(),

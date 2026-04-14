@@ -1,26 +1,26 @@
 // Modelo principal de jugador.
-// Contiene tanto sus datos fijos (nombre, dorsal) como
-// las estadísticas acumuladas a lo largo de todos los partidos.
-
+// Contiene datos fijos (nombre, dorsal, posición) y
+// estadísticas acumuladas a lo largo de todos los partidos.
 class Player {
   final String id;
   String name;
-  int number; // Dorsal
+  int number;      // Dorsal
   String position; // POR, DEF, MED, DEL
   String? photoUrl;
 
-  // --- Estadísticas acumuladas (todos los partidos) ---
+  // --- Estadísticas acumuladas (suma de todos los partidos) ---
   int totalMatches;
-  int ballLosses;      // Pérdidas de balón
-  int dribbles;        // Regates exitosos
+  int ballLosses;   // Pérdidas de balón
+  int dribbles;     // Regates exitosos
   int yellowCards;
   int redCards;
   int goals;
   int assists;
   int minutesPlayed;
-  int crosses;      // Centro
-  int recoveries;   // Recuperación
-  int shots;        // Tiro
+  int crosses;      // Centros al área
+  int recoveries;   // Recuperaciones de balón
+  int shots;        // Tiros a puerta
+  int saves;        // Paradas (solo porteros)
 
   Player({
     required this.id,
@@ -39,10 +39,10 @@ class Player {
     this.crosses = 0,
     this.recoveries = 0,
     this.shots = 0,
+    this.saves = 0,
   });
 
-  // Serialización para guardar en SharedPreferences
-  // Serializa jugador para SharedPreferences (convierte a JSON)
+  // Serialización a JSON para guardar en SharedPreferences
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -60,31 +60,34 @@ class Player {
     'crosses': crosses,
     'recoveries': recoveries,
     'shots': shots,
+    'saves': saves,
   };
 
-  // Deserializa jugador desde localStorage
+  // Deserialización desde JSON.
+  // Usamos ?? 0 en todos los campos para compatibilidad con datos
+  // guardados en versiones anteriores de la app que no tenían ese campo.
   factory Player.fromJson(Map<String, dynamic> json) => Player(
     id: json['id'],
     name: json['name'],
     number: json['number'],
     position: json['position'],
     photoUrl: json['photoUrl'],
-    totalMatches: json['totalMatches'] ?? 0,
-    ballLosses: json['ballLosses'] ?? 0,
-    dribbles: json['dribbles'] ?? 0,
-    yellowCards: json['yellowCards'] ?? 0,
-    redCards: json['redCards'] ?? 0,
-    goals: json['goals'] ?? 0,
-    assists: json['assists'] ?? 0,
+    totalMatches:  json['totalMatches']  ?? 0,
+    ballLosses:    json['ballLosses']    ?? 0,
+    dribbles:      json['dribbles']      ?? 0,
+    yellowCards:   json['yellowCards']   ?? 0,
+    redCards:      json['redCards']      ?? 0,
+    goals:         json['goals']         ?? 0,
+    assists:       json['assists']       ?? 0,
     minutesPlayed: json['minutesPlayed'] ?? 0,
-    crosses: json['crosses'] ?? 0,
-    recoveries: json['recoveries'] ?? 0,
-    shots: json['shots'] ?? 0,
+    crosses:       json['crosses']       ?? 0,
+    recoveries:    json['recoveries']    ?? 0,
+    shots:         json['shots']         ?? 0,
+    saves:         json['saves']         ?? 0,
   );
 
-  // Copia con campos modificados (patrón inmutable)
-  // Crea copia del jugador con campos opcionales actualizados
-  // Usado al guardar cambios sin reemplazar el objeto entero
+  // Patrón copyWith: devuelve una copia con los campos indicados modificados.
+  // Necesario porque Provider notifica cambios comparando referencias de objeto.
   Player copyWith({
     String? name,
     int? number,
@@ -100,22 +103,24 @@ class Player {
     int? crosses,
     int? recoveries,
     int? shots,
+    int? saves,
   }) => Player(
     id: id,
-    name: name ?? this.name,
-    number: number ?? this.number,
-    position: position ?? this.position,
-    photoUrl: photoUrl,
-    totalMatches: totalMatches ?? this.totalMatches,
-    ballLosses: ballLosses ?? this.ballLosses,
-    dribbles: dribbles ?? this.dribbles,
-    yellowCards: yellowCards ?? this.yellowCards,
-    redCards: redCards ?? this.redCards,
-    goals: goals ?? this.goals,
-    assists: assists ?? this.assists,
+    name:          name          ?? this.name,
+    number:        number        ?? this.number,
+    position:      position      ?? this.position,
+    photoUrl:      photoUrl,
+    totalMatches:  totalMatches  ?? this.totalMatches,
+    ballLosses:    ballLosses    ?? this.ballLosses,
+    dribbles:      dribbles      ?? this.dribbles,
+    yellowCards:   yellowCards   ?? this.yellowCards,
+    redCards:      redCards      ?? this.redCards,
+    goals:         goals         ?? this.goals,
+    assists:       assists       ?? this.assists,
     minutesPlayed: minutesPlayed ?? this.minutesPlayed,
-    crosses: crosses ?? this.crosses,
-    recoveries: recoveries ?? this.recoveries,
-    shots: shots ?? this.shots,
+    crosses:       crosses       ?? this.crosses,
+    recoveries:    recoveries    ?? this.recoveries,
+    shots:         shots         ?? this.shots,
+    saves:         saves         ?? this.saves,
   );
 }

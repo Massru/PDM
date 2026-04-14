@@ -6,13 +6,18 @@ import 'package:uuid/uuid.dart';
 import '../models/match.dart';
 import '../models/match_event.dart';
 
+// Provider que gestiona el partido en curso y el historial de partidos.
+// Incluye el cronómetro que avanza segundo a segundo y el marcador en tiempo real.
 class MatchProvider extends ChangeNotifier {
   Match? _currentMatch;
   List<Match> _matchHistory = [];
-  // Tiempo en segundos: se convierte a minutos al guardar en eventos
-  int _totalSeconds = 0;
+  int _totalSeconds = 0; // Tiempo interno en segundos
   bool _isRunning = false;
   Timer? _timer;
+
+  // Marcador en tiempo real (se actualiza automáticamente con eventos de gol)
+  int _goalsFor = 0;     // Goles de nuestro equipo
+  int _goalsAgainst = 0; // Goles del rival
 
   static const _storageKey = 'match_history';
   final _uuid = const Uuid();
@@ -21,13 +26,13 @@ class MatchProvider extends ChangeNotifier {
   List<Match> get matchHistory => List.unmodifiable(_matchHistory);
   bool get isRunning => _isRunning;
   bool get hasActiveMatch => _currentMatch != null && !_currentMatch!.isFinished;
+  int get goalsFor => _goalsFor;
+  int get goalsAgainst => _goalsAgainst;
 
   // Minuto actual (para guardar en los eventos)
-  // Se calcula dividiendo segundos totales entre 60 (división entera ~/ trunca decimales)
   int get currentMinute => _totalSeconds ~/ 60;
 
   // Formato MM:SS para mostrar en pantalla
-  // Calcula minutos y segundos restantes, los formatea con ceros a la izquierda
   String get timerDisplay {
     final minutes = _totalSeconds ~/ 60;
     final seconds = _totalSeconds % 60;
@@ -38,8 +43,7 @@ class MatchProvider extends ChangeNotifier {
     _loadHistory();
   }
 
-  // Crea un nuevo partido con los datos iniciales
-  // Los eventos comienzan vacíos y se van registrando conforme avanza el partido
+  // Inicia un nuevo partido con la alineación seleccionada
   void startMatch(String opponent, List<String> lineup) {
     _currentMatch = Match(
       id: _uuid.v4(),
@@ -49,16 +53,16 @@ class MatchProvider extends ChangeNotifier {
     );
     _totalSeconds = 0;
     _isRunning = false;
+    // Reseteamos el marcador al iniciar partido
+    _goalsFor = 0;
+    _goalsAgainst = 0;
     notifyListeners();
   }
 
-  // Inicia el cronómetro automático
-  // Crea un Timer que llama cada 1 segundo, incrementando _totalSeconds
-  // Luego notifica a los listeners para actualizar la UI
+  // Arranca el cronómetro (tick cada segundo)
   void startTimer() {
-    if (_isRunning) return; // Evita crear múltiples timers
+    if (_isRunning) return;
     _isRunning = true;
-    // Timer.periodic crea un timer recurrente que se ejecuta cada Duration
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _totalSeconds++;
       notifyListeners();
@@ -66,24 +70,21 @@ class MatchProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Pausa el cronómetro: cancela el Timer y actualiza el estado
+  // Pausa el cronómetro sin resetear el tiempo
   void pauseTimer() {
     _isRunning = false;
-    _timer?.cancel(); // Detiene el timer periódico
+    _timer?.cancel();
     notifyListeners();
   }
 
-  // Ajusta tiempo en minutos completos: -1 min = -60 seg, +1 min = +60 seg
-  // Limitado a 0-120 minutos (rango válido de partido)
-  // clamp(0, 120*60) asegura que no quede negativo ni pase de 2 horas
+  // Ajuste manual fino: delta en minutos (convierte a segundos internamente)
   void adjustMinute(int delta) {
     _totalSeconds = (_totalSeconds + delta * 60).clamp(0, 120 * 60);
     notifyListeners();
   }
 
-  // Registra un evento en el partido actual
-  // Si es una sustitución (substitutionOut), actualiza la alineación actual
-  // reemplazando el jugador que sale con el que entra
+  // Registra un evento usando el minuto actual del cronómetro.
+  // Si el evento es un gol, incrementa automáticamente el marcador propio.
   void addEvent(String playerId, EventType type, {String? relatedPlayerId}) {
     if (_currentMatch == null) return;
 
@@ -91,14 +92,18 @@ class MatchProvider extends ChangeNotifier {
       id: _uuid.v4(),
       playerId: playerId,
       type: type,
-      minute: currentMinute, // Guardamos minuto entero, no segundos
+      minute: currentMinute, // Se toma automáticamente del cronómetro
       relatedPlayerId: relatedPlayerId,
     );
 
     _currentMatch!.events.add(event);
 
-    // Si es sustitución, actualizamos la alineación actual
-    // Encuentra la posición del jugador que sale y la reemplaza con el que entra
+    // Si el evento es un gol sumamos al marcador propio automáticamente
+    if (type == EventType.goal) {
+      _goalsFor++;
+    }
+
+    // Si es sustitución, actualizamos la alineación activa del partido
     if (type == EventType.substitutionOut && relatedPlayerId != null) {
       final idx = _currentMatch!.lineup.indexOf(playerId);
       if (idx != -1) {
@@ -109,65 +114,74 @@ class MatchProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Deshace el último evento registrado
-  // Útil para corregir errores de registro rápidamente
+  // Elimina el último evento registrado (botón deshacer).
+  // Si el evento era un gol, resta del marcador propio.
   void undoLastEvent() {
     if (_currentMatch == null || _currentMatch!.events.isEmpty) return;
-    _currentMatch!.events.removeLast(); // Elimina el último evento de la lista
+    final last = _currentMatch!.events.last;
+    // Si deshacemos un gol, lo restamos del marcador
+    if (last.type == EventType.goal && _goalsFor > 0) {
+      _goalsFor--;
+    }
+    _currentMatch!.events.removeLast();
     notifyListeners();
   }
 
-  // Cuenta cuántas veces ocurrió un evento específico para un jugador
-  // Por ejemplo: cuántas tarjetas amarillas tiene un jugador en este partido
+  // Suma un gol al equipo rival manualmente (botón + en el marcador)
+  void addGoalAgainst() {
+    _goalsAgainst++;
+    notifyListeners();
+  }
+
+  // Resta un gol al equipo rival (pulsación larga en el botón - para evitar errores)
+  void removeGoalAgainst() {
+    if (_goalsAgainst > 0) _goalsAgainst--;
+    notifyListeners();
+  }
+
+  // Cuenta cuántas veces ocurrió un tipo de evento para un jugador en el partido actual
   int getStatForPlayer(String playerId, EventType type) {
     if (_currentMatch == null) return 0;
-    // Filtra eventos del jugador con ese tipo, y cuenta cuántos hay
     return _currentMatch!.events
         .where((e) => e.playerId == playerId && e.type == type)
         .length;
   }
 
-  // Finaliza el partido actual con el resultado final
-  // Detiene el cronómetro, marca como finalizado y lo guarda en el historial
-  void finishMatch(int goalsFor, int goalsAgainst) {
+  // Finaliza el partido, para el cronómetro y guarda en historial.
+  // Usa el marcador interno en tiempo real como resultado final.
+  void finishMatch() {
     if (_currentMatch == null) return;
-    pauseTimer(); // Pausa el cronómetro
-    _currentMatch!.goalsFor = goalsFor;
-    _currentMatch!.goalsAgainst = goalsAgainst;
+    pauseTimer();
+    _currentMatch!.goalsFor = _goalsFor;
+    _currentMatch!.goalsAgainst = _goalsAgainst;
     _currentMatch!.isFinished = true;
-    // Añade el partido finalizado al historial permanente
     _matchHistory.add(_currentMatch!);
-    _saveHistory(); // Persiste en SharedPreferences
+    _saveHistory();
     notifyListeners();
   }
 
+  // Importante: cancelar el timer al destruir el provider para evitar memory leaks
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
   }
 
-  // Serializa todo el historial de partidos a JSON y lo guarda en SharedPreferences
-  // Esto permite recuperar los datos después de cerrar la app
+  // --- Persistencia del historial ---
+
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    // Convierte cada Match a JSON, luego todo a una lista JSON
     final list = _matchHistory.map((m) => m.toJson()).toList();
-    // Guarda la lista bajo la clave 'match_history'
     await prefs.setString(_storageKey, jsonEncode(list));
   }
 
-  // Recupera el historial de partidos guardado en SharedPreferences
-  // Se llama en el constructor para cargar los datos al iniciar la app
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey); // Obtiene el JSON guardado
+    final raw = prefs.getString(_storageKey);
     if (raw != null) {
-      // Decodifica JSON a List de Maps
       final list = jsonDecode(raw) as List;
-      // Convierte cada Map a un objeto Match usando fromJson
       _matchHistory = list.map((e) => Match.fromJson(e)).toList();
-      notifyListeners(); // Notifica a listeners para actualizar UI
+      notifyListeners();
     }
   }
 }

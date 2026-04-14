@@ -6,21 +6,24 @@ import 'providers/match_provider.dart';
 import 'app.dart';
 
 void main() async {
+  // Necesario antes de cualquier llamada a métodos nativos
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Fuerza orientación vertical (mejor UX para control de partido)
+
+  // Bloquea la orientación en vertical en código Dart
+  // (complementar con android:screenOrientation="portrait" en AndroidManifest.xml)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Inicializa todos los providers globales de la app
   runApp(
+    // MultiProvider registra todos los providers globales de la app
+    // Cualquier widget descendiente puede acceder a ellos con context.watch/read
     MultiProvider(
       providers: [
-        // PlayersProvider: gestiona lista de jugadores y persistencia
+        // Gestión de jugadores y sus estadísticas acumuladas
         ChangeNotifierProvider(create: (_) => PlayersProvider()),
-        // MatchProvider: gestiona partidos activos, cronómetro y eventos
+        // Gestión del partido en curso e historial
         ChangeNotifierProvider(create: (_) => MatchProvider()),
       ],
       child: const FootballCoachApp(),

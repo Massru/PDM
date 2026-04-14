@@ -1,27 +1,27 @@
-// Representa un evento ocurrido durante el partido:
-// un regate, una pérdida de balón, una tarjeta, etc.
-// Guardamos el historial completo para poder revertir o auditar.
-
+// Tipos de evento que se pueden registrar durante un partido
 enum EventType {
-  ballLoss,     // Pérdida de balón
-  dribble,      // Regate exitoso
-  yellowCard,
-  redCard,
-  goal,
-  assist,
-  substitutionOut,  // Jugador sale
-  substitutionIn,   // Jugador entra
-  cross,        // Centro
-  recovery,     // Recuperación
-  shot,         // Tiro
+  ballLoss,        // Pérdida de balón
+  dribble,         // Regate exitoso
+  yellowCard,      // Tarjeta amarilla
+  redCard,         // Tarjeta roja
+  goal,            // Gol
+  assist,          // Asistencia
+  substitutionOut, // Jugador que sale del campo
+  substitutionIn,  // Jugador que entra al campo
+  cross,           // Centro al área
+  recovery,        // Recuperación de balón
+  shot,            // Tiro a puerta
+  save,            // Parada (solo porteros)
 }
 
+// Representa un evento puntual ocurrido durante el partido.
+// Guardamos el historial completo para poder auditar o revertir.
 class MatchEvent {
   final String id;
-  final String playerId;
+  final String playerId;           // Jugador protagonista del evento
   final EventType type;
-  final int minute;         // Minuto del partido
-  final String? relatedPlayerId; // Para sustituciones: el otro jugador
+  final int minute;                // Minuto del partido en que ocurrió
+  final String? relatedPlayerId;   // Para sustituciones: el otro jugador implicado
 
   const MatchEvent({
     required this.id,

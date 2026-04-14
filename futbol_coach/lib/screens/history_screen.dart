@@ -7,18 +7,16 @@ import '../models/match_event.dart';
 import '../models/player.dart';
 import '../utils/constants.dart';
 
-// Pantalla de historial:
-// - Muestra todos los partidos finalizados (más recientes primero)
-// - Cada partido es una tarjeta expandible con detalles
-// - Muestra resultado, fecha y estadísticas
-
+// Pantalla de historial de partidos finalizados.
+// Muestra cada partido como una tarjeta expandible con estadísticas por jugador.
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final matchProv = context.watch<MatchProvider>();
-    final history   = matchProv.matchHistory.reversed.toList();
+    // Más reciente primero
+    final history = matchProv.matchHistory.reversed.toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -26,7 +24,8 @@ class HistoryScreen extends StatelessWidget {
         backgroundColor: AppColors.surface,
         title: const Text(
           'Historial de Partidos',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
       ),
       body: history.isEmpty
@@ -62,8 +61,7 @@ class HistoryScreen extends StatelessWidget {
   }
 }
 
-// Tarjeta resumen de un partido expandible
-// Muestra: fecha, rival, resultado, y al expandir: detalles completos
+// ---- Tarjeta de un partido con estadísticas expandibles ----
 
 class _MatchCard extends StatelessWidget {
   final Match match;
@@ -71,14 +69,15 @@ class _MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final date     = match.date;
-    final dateStr  = '${date.day.toString().padLeft(2, '0')}/'
-                     '${date.month.toString().padLeft(2, '0')}/'
-                     '${date.year}';
-    final result   = '${match.goalsFor} - ${match.goalsAgainst}';
-    // Determina color según resultado: Victoria (verde), Empate (ámbar), Derrota (rojo)
-    final won      = match.goalsFor > match.goalsAgainst;
-    final draw     = match.goalsFor == match.goalsAgainst;
+    final date    = match.date;
+    final dateStr = '${date.day.toString().padLeft(2, '0')}/'
+                    '${date.month.toString().padLeft(2, '0')}/'
+                    '${date.year}';
+    final result  = '${match.goalsFor} - ${match.goalsAgainst}';
+    final won     = match.goalsFor > match.goalsAgainst;
+    final draw    = match.goalsFor == match.goalsAgainst;
+
+    // Color del resultado: verde ganado, ámbar empate, rojo derrota
     final resultColor = won
         ? AppColors.accent
         : draw
@@ -93,17 +92,18 @@ class _MatchCard extends StatelessWidget {
         border: Border.all(color: resultColor.withOpacity(0.3)),
       ),
       child: Theme(
+        // Elimina el divider por defecto del ExpansionTile
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          // Cabecera del partido
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding:
+              const EdgeInsets.fromLTRB(16, 0, 16, 16),
           title: Row(
             children: [
-              // Indicador resultado
+              // Franja de color indicando el resultado
               Container(
-                width: 4,
-                height: 40,
+                width: 4, height: 40,
                 decoration: BoxDecoration(
                   color: resultColor,
                   borderRadius: BorderRadius.circular(2),
@@ -125,16 +125,15 @@ class _MatchCard extends StatelessWidget {
                     Text(
                       dateStr,
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
+                          color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              // Resultado
+              // Resultado con color
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: resultColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
@@ -151,14 +150,15 @@ class _MatchCard extends StatelessWidget {
               ),
             ],
           ),
+          // Resumen rápido de eventos del partido
           subtitle: Padding(
             padding: const EdgeInsets.only(left: 16, top: 4),
             child: _buildQuickStats(),
           ),
-          // Contenido expandido: estadísticas por jugador
           children: [
             const Divider(color: Colors.white10),
             const SizedBox(height: 8),
+            // Tabla de estadísticas individuales por jugador
             _buildPlayerStats(context),
           ],
         ),
@@ -166,13 +166,13 @@ class _MatchCard extends StatelessWidget {
     );
   }
 
-  // Resumen rápido de eventos del partido
+  // Resumen rápido de los eventos más relevantes del partido
   Widget _buildQuickStats() {
-    final goals    = match.events.where((e) => e.type == EventType.goal).length;
-    final assists  = match.events.where((e) => e.type == EventType.assist).length;
-    final yellows  = match.events.where((e) => e.type == EventType.yellowCard).length;
-    final reds     = match.events.where((e) => e.type == EventType.redCard).length;
-    final subs     = match.events.where((e) => e.type == EventType.substitutionOut).length;
+    final goals   = match.events.where((e) => e.type == EventType.goal).length;
+    final assists = match.events.where((e) => e.type == EventType.assist).length;
+    final yellows = match.events.where((e) => e.type == EventType.yellowCard).length;
+    final reds    = match.events.where((e) => e.type == EventType.redCard).length;
+    final subs    = match.events.where((e) => e.type == EventType.substitutionOut).length;
 
     return Row(
       children: [
@@ -190,16 +190,17 @@ class _MatchCard extends StatelessWidget {
       padding: const EdgeInsets.only(right: 10),
       child: Text(
         '$emoji $value',
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        style: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 12),
       ),
     );
   }
 
-  // Tabla de estadísticas por jugador
+  // Tabla de estadísticas individuales de cada jugador participante
   Widget _buildPlayerStats(BuildContext context) {
     final playersProv = context.read<PlayersProvider>();
 
-    // Recogemos todos los jugadores que participaron
+    // Todos los que participaron: titulares + sustitutos que entraron
     final participantIds = <String>{
       ...match.lineup,
       ...match.events
@@ -214,16 +215,13 @@ class _MatchCard extends StatelessWidget {
       ..sort((a, b) => a.number.compareTo(b.number));
 
     if (participants.isEmpty) {
-      return const Text(
-        'Sin datos de jugadores',
-        style: TextStyle(color: AppColors.textSecondary),
-      );
+      return const Text('Sin datos de jugadores',
+          style: TextStyle(color: AppColors.textSecondary));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Cabecera de la tabla
         const Padding(
           padding: EdgeInsets.only(bottom: 8),
           child: Text(
@@ -236,19 +234,20 @@ class _MatchCard extends StatelessWidget {
             ),
           ),
         ),
-        // Fila de encabezados
+        // Cabecera de columnas
         Row(
           children: [
             const SizedBox(width: 28),
             const Expanded(
-              child: Text(
-                'Jugador',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              ),
+              child: Text('Jugador',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11)),
             ),
             _headerCell('⚽'),
             _headerCell('🅰️'),
             _headerCell('↔️'),
+            _headerCell('🎯'),
+            _headerCell('🔄'),
             _headerCell('❌'),
             _headerCell('🟡'),
             _headerCell('🔴'),
@@ -257,12 +256,12 @@ class _MatchCard extends StatelessWidget {
         const SizedBox(height: 6),
         const Divider(color: Colors.white10, height: 1),
         const SizedBox(height: 6),
-        // Filas de jugadores
+        // Fila por cada jugador participante
         ...participants.map((p) => _playerRow(p)),
         const SizedBox(height: 8),
-        // Leyenda
+        // Leyenda de iconos
         const Text(
-          '⚽ Goles  🅰️ Asistencias  ↔️ Regates  ❌ Pérdidas  🟡 Amarilla  🔴 Roja',
+          '⚽ Goles  🅰️ Asist  ↔️ Regates  🎯 Tiros  🔄 Recupera  ❌ Pérdidas  🟡 Amarilla  🔴 Roja',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
         ),
       ],
@@ -271,7 +270,7 @@ class _MatchCard extends StatelessWidget {
 
   Widget _headerCell(String text) {
     return SizedBox(
-      width: 28,
+      width: 26,
       child: Text(
         text,
         textAlign: TextAlign.center,
@@ -281,15 +280,15 @@ class _MatchCard extends StatelessWidget {
   }
 
   Widget _playerRow(Player player) {
-    final stats  = match.statsForPlayer(player.id);
-    final isSub  = !match.lineup.contains(player.id);
+    final stats    = match.statsForPlayer(player.id);
+    final isSub    = !match.lineup.contains(player.id);
     final posColor = positionColors[player.position] ?? AppColors.accent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          // Dorsal
+          // Dorsal con color de posición
           Container(
             width: 24, height: 24,
             decoration: BoxDecoration(
@@ -308,12 +307,12 @@ class _MatchCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Nombre (suplentes en gris)
+          // Nombre con etiqueta SUB si entró como sustituto
           Expanded(
             child: Row(
               children: [
                 Text(
-                  player.name.split(' ').last, // Apellido
+                  player.name.split(' ').last,
                   style: TextStyle(
                     color: isSub
                         ? AppColors.textSecondary
@@ -336,10 +335,12 @@ class _MatchCard extends StatelessWidget {
               ],
             ),
           ),
-          // Estadísticas
+          // Estadísticas individuales del partido
           _statCell(stats[EventType.goal]       ?? 0, AppColors.accentWarm),
           _statCell(stats[EventType.assist]     ?? 0, const Color(0xFF64B5F6)),
           _statCell(stats[EventType.dribble]    ?? 0, AppColors.accent),
+          _statCell(stats[EventType.shot]       ?? 0, const Color(0xFFFF8A65)),
+          _statCell(stats[EventType.recovery]   ?? 0, const Color(0xFF80CBC4)),
           _statCell(stats[EventType.ballLoss]   ?? 0, AppColors.danger),
           _statCell(stats[EventType.yellowCard] ?? 0, AppColors.yellow),
           _statCell(stats[EventType.redCard]    ?? 0, AppColors.danger),
@@ -350,12 +351,15 @@ class _MatchCard extends StatelessWidget {
 
   Widget _statCell(int value, Color color) {
     return SizedBox(
-      width: 28,
+      width: 26,
       child: Text(
         value > 0 ? '$value' : '·',
         textAlign: TextAlign.center,
         style: TextStyle(
-          color: value > 0 ? color : AppColors.textSecondary.withOpacity(0.4),
+          // Solo mostramos color si el valor es mayor que 0
+          color: value > 0
+              ? color
+              : AppColors.textSecondary.withOpacity(0.4),
           fontSize: 13,
           fontWeight: value > 0 ? FontWeight.bold : FontWeight.normal,
         ),
