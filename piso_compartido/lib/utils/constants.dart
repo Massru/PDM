@@ -13,6 +13,11 @@ class AppConstants {
     'Otro',
   ];
 
+  static const String prefKeyFlats = 'flats';
+  static const String prefKeyActiveFlat = 'active_flat_id';
+  static const String prefKeyExpensesPrefix = 'expenses_';
+
+  // Compatibilidad con versión anterior (un solo piso)
   static const String prefKeyConfig = 'flat_config';
   static const String prefKeyExpenses = 'expenses';
 }

@@ -1,12 +1,14 @@
 class FlatConfig {
+  final String id;
+  final String name; // nombre del piso, ej: "Piso Rúa do Demo"
   final List<String> people;
   final List<String> fixedExpenseCategories;
-  /// Importes fijos por categoría (clave = nombre categoría)
   final Map<String, double> fixedExpenseAmounts;
-  /// Día de cierre: 1-31, o 0 = último día del mes
   final int billingDay;
 
   const FlatConfig({
+    required this.id,
+    required this.name,
     required this.people,
     required this.fixedExpenseCategories,
     required this.fixedExpenseAmounts,
@@ -17,6 +19,8 @@ class FlatConfig {
       billingDay == 0 ? 'Último día del mes' : 'Día $billingDay';
 
   Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
         'people': people,
         'fixedExpenseCategories': fixedExpenseCategories,
         'fixedExpenseAmounts':
@@ -25,6 +29,8 @@ class FlatConfig {
       };
 
   factory FlatConfig.fromJson(Map<String, dynamic> json) => FlatConfig(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Mi piso',
         people: List<String>.from(json['people']),
         fixedExpenseCategories:
             List<String>.from(json['fixedExpenseCategories']),
@@ -34,6 +40,6 @@ class FlatConfig {
                     .map((k, v) => MapEntry(k as String, (v as num).toDouble())),
               )
             : {},
-        billingDay: json['billingDay'],
+        billingDay: json['billingDay'] as int,
       );
 }

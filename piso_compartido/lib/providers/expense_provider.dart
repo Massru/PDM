@@ -4,7 +4,6 @@ import '../models/expense.dart';
 import '../models/person.dart';
 import '../models/settlement.dart';
 import '../providers/flat_provider.dart';
-import '../utils/constants.dart';
 import '../utils/date_utils.dart';
 import '../utils/storage_service.dart';
 
@@ -25,29 +24,31 @@ class BalanceSummary {
 class ExpenseProvider with ChangeNotifier {
   List<Expense> _expenses = [];
   FlatProvider? _flatProvider;
-  bool _loaded = false;
+  String? _loadedForFlatId;
 
   List<Expense> get expenses => List.unmodifiable(_expenses);
 
   void update(FlatProvider flat) {
+    final newFlatId = flat.config?.id;
     _flatProvider = flat;
-    if (flat.isConfigured && !_loaded) {
-      _loaded = true;
+
+    // Recargar si cambiamos de piso o es la primera carga
+    if (flat.isConfigured && newFlatId != _loadedForFlatId) {
+      _loadedForFlatId = newFlatId;
       _loadExpenses();
     }
   }
 
   Future<void> _loadExpenses() async {
-    _expenses = await StorageService.loadList(
-      AppConstants.prefKeyExpenses,
-      Expense.fromJson,
-    );
+    final key = _flatProvider!.expensesKey;
+    _expenses = await StorageService.loadList(key, Expense.fromJson);
     notifyListeners();
   }
 
   Future<void> _save() async {
+    final key = _flatProvider!.expensesKey;
     await StorageService.save(
-      AppConstants.prefKeyExpenses,
+      key,
       _expenses.map((e) => e.toJson()).toList(),
     );
   }
@@ -83,7 +84,7 @@ class ExpenseProvider with ChangeNotifier {
 
   void reset() {
     _expenses = [];
-    _loaded = false;
+    _loadedForFlatId = null;
     notifyListeners();
   }
 
@@ -126,11 +127,6 @@ class ExpenseProvider with ChangeNotifier {
     }).toList();
   }
 
-  /// Calcula la liquidación completa del período actual.
-  ///
-  /// Incluye gastos fijos (repartidos igualmente entre todos) +
-  /// gastos variables registrados. Luego calcula las transferencias
-  /// mínimas para saldar todas las deudas.
   Settlement computeSettlement() {
     final flat = _flatProvider!;
     final config = flat.config!;
@@ -138,14 +134,7 @@ class ExpenseProvider with ChangeNotifier {
     final today = flat.simulatedToday;
     final (start, end) = AppDateUtils.currentPeriod(config.billingDay, today);
 
-    // Balance neto por persona en euros
-    // positivo = le deben dinero, negativo = debe dinero
     final Map<String, double> net = {for (var p in people) p.id: 0.0};
-
-    // 1. Gastos fijos: se reparten a partes iguales entre todos.
-    //    Se considera que "el piso" los debe, no una persona concreta.
-    //    Cada persona debe su parte; si alguien ya pagó una factura
-    //    de esa categoría en el período, se le acredita.
     final Map<String, double> fixedOwed = {};
     final double numPeople = people.length.toDouble();
 
@@ -154,31 +143,26 @@ class ExpenseProvider with ChangeNotifier {
       if (amount <= 0) continue;
       final share = amount / numPeople;
       fixedOwed[cat] = share;
-      // Todos deben su parte
       for (final p in people) {
         net[p.id] = (net[p.id] ?? 0) - share;
       }
     }
 
-    // 2. Gastos variables del período: quien pagó suma, quienes deben restan
     final Map<String, double> variablePaid = {for (var p in people) p.id: 0.0};
     final periodExpenses = _expenses.where((e) {
       return !e.date.isBefore(start) && !e.date.isAfter(end);
     }).toList();
 
     for (final expense in periodExpenses) {
-      // El que pagó recupera lo que puso
       net[expense.paidByPersonId] =
           (net[expense.paidByPersonId] ?? 0) + expense.amount;
       variablePaid[expense.paidByPersonId] =
           (variablePaid[expense.paidByPersonId] ?? 0) + expense.amount;
-      // Cada persona que comparte el gasto debe su parte
       for (final personId in expense.splitAmongIds) {
         net[personId] = (net[personId] ?? 0) - expense.sharePerPerson;
       }
     }
 
-    // 3. Algoritmo de liquidación mínima (greedy deudor/acreedor)
     final transfers = _minimizeTransfers(net, people);
 
     return Settlement(
@@ -191,10 +175,8 @@ class ExpenseProvider with ChangeNotifier {
     );
   }
 
-  /// Dado un mapa de balances netos, calcula las transferencias mínimas.
   List<Transfer> _minimizeTransfers(
       Map<String, double> net, List<Person> people) {
-    // Separar deudores (net < 0) y acreedores (net > 0)
     final debtors = people
         .where((p) => (net[p.id] ?? 0) < -0.01)
         .map((p) => [p.id, net[p.id]!])
@@ -215,8 +197,8 @@ class ExpenseProvider with ChangeNotifier {
       final creditorId = creditors[ci][0] as String;
       final debt = -(debtors[di][1] as double);
       final credit = creditors[ci][1] as double;
-
       final amount = debt < credit ? debt : credit;
+
       if (amount > 0.01) {
         transfers.add(Transfer(
           fromPersonId: debtorId,

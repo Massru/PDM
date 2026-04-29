@@ -6,6 +6,7 @@ import '../utils/date_utils.dart';
 import '../widgets/expense_card.dart';
 import 'add_expense_screen.dart';
 import 'settlement_screen.dart';
+import 'setup_screen.dart';
 import 'summary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,7 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.didChangeDependencies();
     final flat = context.watch<FlatProvider>();
     if (flat.periodJustClosed) {
-      // Espera al siguiente frame para navegar
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.push(
@@ -42,8 +42,52 @@ class _HomeScreenState extends State<HomeScreen> {
     final periodExpenses = expenseProvider.currentPeriodExpenses();
 
     return Scaffold(
+      // ── Drawer ───────────────────────────────────────────────────
+      drawer: _FlatsDrawer(
+        flats: flatProvider.flats,
+        activeFlatId: config.id,
+        onSwitch: (id) async {
+          await flatProvider.switchFlat(id);
+          if (context.mounted) Navigator.pop(context);
+        },
+        onNew: () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SetupScreen()),
+          );
+        },
+        onDelete: () async {
+          Navigator.pop(context);
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('¿Eliminar piso?'),
+              content: Text(
+                  'Se eliminará "${config.name}" y todos sus gastos. Esta acción no se puede deshacer.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar')),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+            ),
+          );
+          if (confirm == true && context.mounted) {
+            context.read<ExpenseProvider>().reset();
+            await context.read<FlatProvider>().deleteActiveFlat();
+          }
+        },
+      ),
+
+      // ── AppBar ───────────────────────────────────────────────────
       appBar: AppBar(
-        title: const Text('Gastos del piso'),
+        title: Text(config.name),
         centerTitle: true,
         actions: [
           IconButton(
@@ -64,14 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text('Ver liquidación'),
                 ]),
               ),
-              const PopupMenuItem(
-                value: 'reset',
-                child: Row(children: [
-                  Icon(Icons.delete_forever, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Reiniciar configuración'),
-                ]),
-              ),
             ],
             onSelected: (v) {
               if (v == 'settlement') {
@@ -80,33 +116,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   MaterialPageRoute(
                       builder: (_) => const SettlementScreen()),
                 );
-              } else if (v == 'reset') {
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('¿Reiniciar?'),
-                    content: const Text(
-                        'Se borrarán todos los datos. Esta acción no se puede deshacer.'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Cancelar')),
-                      FilledButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          context.read<FlatProvider>().reset();
-                          context.read<ExpenseProvider>().reset();
-                        },
-                        child: const Text('Reiniciar'),
-                      ),
-                    ],
-                  ),
-                );
               }
             },
           ),
         ],
       ),
+
+      // ── Body ─────────────────────────────────────────────────────
       body: Column(
         children: [
           _DateBanner(today: today, periodStart: start, periodEnd: end),
@@ -120,7 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             size: 64, color: Colors.grey),
                         const SizedBox(height: 12),
                         Text('Sin gastos en este período',
-                            style: Theme.of(context).textTheme.bodyLarge),
+                            style:
+                                Theme.of(context).textTheme.bodyLarge),
                       ],
                     ),
                   )
@@ -149,6 +166,99 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ── Drawer de pisos ────────────────────────────────────────────────
+class _FlatsDrawer extends StatelessWidget {
+  final List<dynamic> flats;
+  final String activeFlatId;
+  final void Function(String id) onSwitch;
+  final VoidCallback onNew;
+  final VoidCallback onDelete;
+
+  const _FlatsDrawer({
+    required this.flats,
+    required this.activeFlatId,
+    required this.onSwitch,
+    required this.onNew,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Drawer(
+      child: Column(
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(color: cs.primaryContainer),
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Text(
+                'Mis pisos',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(color: cs.onPrimaryContainer),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                ...flats.map((flat) {
+                  final isActive = flat.id == activeFlatId;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isActive
+                          ? cs.primary
+                          : cs.surfaceVariant,
+                      child: Icon(
+                        Icons.home,
+                        color: isActive
+                            ? cs.onPrimary
+                            : cs.onSurfaceVariant,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(flat.name,
+                        style: TextStyle(
+                            fontWeight: isActive
+                                ? FontWeight.bold
+                                : FontWeight.normal)),
+                    subtitle: Text(
+                        '${flat.people.length} personas · ${flat.billingDayLabel}'),
+                    selected: isActive,
+                    selectedTileColor: cs.primaryContainer.withOpacity(0.3),
+                    onTap: isActive ? null : () => onSwitch(flat.id),
+                    trailing: isActive
+                        ? const Icon(Icons.check, size: 18)
+                        : null,
+                  );
+                }),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.add_home),
+            title: const Text('Nuevo piso'),
+            onTap: onNew,
+          ),
+          ListTile(
+            leading:
+                const Icon(Icons.delete_outline, color: Colors.redAccent),
+            title: const Text('Eliminar piso actual',
+                style: TextStyle(color: Colors.redAccent)),
+            onTap: onDelete,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Banner de fecha ───────────────────────────────────────────────
 class _DateBanner extends StatelessWidget {
   final DateTime today;
   final DateTime periodStart;
@@ -175,17 +285,15 @@ class _DateBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.today, size: 14, color: cs.onPrimaryContainer),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Hoy: ${AppDateUtils.format(today)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onPrimaryContainer),
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  Icon(Icons.today, size: 14, color: cs.onPrimaryContainer),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Hoy: ${AppDateUtils.format(today)}',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: cs.onPrimaryContainer),
+                  ),
+                ]),
                 const SizedBox(height: 2),
                 Text(
                   'Período: ${AppDateUtils.format(periodStart)} → ${AppDateUtils.format(periodEnd)}',

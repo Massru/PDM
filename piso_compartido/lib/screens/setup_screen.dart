@@ -12,10 +12,10 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _flatNameCtrl = TextEditingController();
   int _numPeople = 2;
   final List<TextEditingController> _nameControllers = [];
   final Set<String> _selectedCategories = {};
-  // Controladores para los importes de gastos fijos
   final Map<String, TextEditingController> _amountControllers = {};
   int _billingDay = 1;
 
@@ -36,11 +36,9 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   void _syncAmountControllers() {
-    // Añadir controladores para categorías nuevas
     for (final cat in _selectedCategories) {
       _amountControllers.putIfAbsent(cat, () => TextEditingController());
     }
-    // Eliminar los de categorías deseleccionadas
     _amountControllers.removeWhere((cat, ctrl) {
       if (!_selectedCategories.contains(cat)) {
         ctrl.dispose();
@@ -52,6 +50,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
   @override
   void dispose() {
+    _flatNameCtrl.dispose();
     for (final c in _nameControllers) c.dispose();
     for (final c in _amountControllers.values) c.dispose();
     super.dispose();
@@ -59,15 +58,16 @@ class _SetupScreenState extends State<SetupScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
     final names = _nameControllers.map((c) => c.text.trim()).toList();
     final amounts = <String, double>{};
     for (final cat in _selectedCategories) {
       final raw = _amountControllers[cat]?.text.replaceAll(',', '.') ?? '';
       amounts[cat] = double.tryParse(raw) ?? 0.0;
     }
-
     await context.read<FlatProvider>().setupFlat(
+          flatName: _flatNameCtrl.text.trim().isEmpty
+              ? 'Mi piso'
+              : _flatNameCtrl.text.trim(),
           names: names,
           fixedCategories: _selectedCategories.toList(),
           fixedAmounts: amounts,
@@ -99,7 +99,20 @@ class _SetupScreenState extends State<SetupScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            // ── Número de personas ──────────────────────────────────
+            // ── Nombre del piso ──────────────────────────────────────
+            Text('Nombre del piso:', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _flatNameCtrl,
+              decoration: const InputDecoration(
+                hintText: 'Ej: Piso Rúa do Demo',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.home),
+              ),
+            ),
+
+            // ── Número de personas ───────────────────────────────────
+            const SizedBox(height: 20),
             Text('¿Cuántas personas vivís?',
                 style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -127,7 +140,7 @@ class _SetupScreenState extends State<SetupScreen> {
               ],
             ),
 
-            // ── Nombres ─────────────────────────────────────────────
+            // ── Nombres ──────────────────────────────────────────────
             const SizedBox(height: 16),
             Text('Nombres de los inquilinos:',
                 style: theme.textTheme.titleMedium),
@@ -156,13 +169,11 @@ class _SetupScreenState extends State<SetupScreen> {
                 style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              'Selecciona los gastos fijos e indica el importe mensual de cada uno.',
+              'Selecciona los gastos fijos e indica el importe mensual.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
-
-            // Chips de selección
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -186,13 +197,12 @@ class _SetupScreenState extends State<SetupScreen> {
                   )
                   .toList(),
             ),
-
-            // Campos de importe para cada categoría seleccionada
             if (_selectedCategories.isNotEmpty) ...[
               const SizedBox(height: 14),
               Container(
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                  color:
+                      theme.colorScheme.surfaceVariant.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.all(14),
@@ -208,8 +218,9 @@ class _SetupScreenState extends State<SetupScreen> {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: TextFormField(
                           controller: _amountControllers[cat],
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
                           decoration: InputDecoration(
                             hintText: '0.00',
                             labelText: cat,
@@ -218,10 +229,11 @@ class _SetupScreenState extends State<SetupScreen> {
                             isDense: true,
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty) return null; // opcional
-                            final n =
-                                double.tryParse(v.replaceAll(',', '.'));
-                            if (n == null || n < 0) return 'Importe no válido';
+                            if (v == null || v.isEmpty) return null;
+                            final n = double.tryParse(
+                                v.replaceAll(',', '.'));
+                            if (n == null || n < 0)
+                              return 'Importe no válido';
                             return null;
                           },
                         ),

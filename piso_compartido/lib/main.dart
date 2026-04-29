@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/flat_provider.dart';
 import 'providers/expense_provider.dart';
-import 'screens/setup_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
@@ -27,7 +27,7 @@ class PisoGastosApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Piso Gastos',
+      title: 'PisoGastos',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF5C6BC0)),
@@ -35,8 +35,13 @@ class PisoGastosApp extends StatelessWidget {
       ),
       home: Consumer<FlatProvider>(
         builder: (context, flat, _) {
-          if (!flat.isConfigured) return const SetupScreen();
-          return const HomeScreen();
+          if (flat.isLoading) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (flat.isConfigured) return const HomeScreen();
+          return const WelcomeScreen();
         },
       ),
     );
