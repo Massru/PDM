@@ -1,9 +1,11 @@
-/// Una transferencia mínima necesaria para saldar todas las deudas del período
+/// Representa una transferencia de dinero entre dos personas
+/// para saldar una deuda del período.
 class Transfer {
-  final String fromPersonId; // quien paga
-  final String toPersonId;   // quien cobra
-  final double amount;
-  bool isPaid;               // marcado manualmente en la pantalla
+  final String fromPersonId; // Quien debe pagar
+  final String toPersonId;   // Quien debe recibir
+  final double amount;       // Cantidad exacta a transferir
+  bool isPaid;               // Estado mutable: el usuario lo marca
+                             // manualmente en la pantalla de liquidación
 
   Transfer({
     required this.fromPersonId,
@@ -13,17 +15,22 @@ class Transfer {
   });
 }
 
-/// Resultado completo de la liquidación de un período
+/// Resultado completo del cálculo de liquidación de un período.
+/// Agrupa toda la información necesaria para mostrar la pantalla
+/// de liquidación: desglose de fijos, pagos variables y transferencias.
 class Settlement {
   final DateTime periodStart;
   final DateTime periodEnd;
-  final List<Transfer> transfers;
-  /// Desglose: cuánto debe cada persona en gastos fijos
-  final Map<String, double> fixedOwed;
-  /// Desglose: cuánto ha pagado cada persona en gastos variables
-  final Map<String, double> variablePaid;
-  /// Balance neto final por persona (positivo = le deben, negativo = debe)
-  final Map<String, double> netBalance;
+  final List<Transfer> transfers;    // Lista mínima de pagos para saldar todo
+  final Map<String, double> fixedOwed;      // Cuánto debe cada uno por fijos
+                                            // (clave = nombre categoría)
+  final Map<String, double> variablePaid;   // Cuánto ha pagado cada persona
+                                            // en gastos variables
+                                            // (clave = personId)
+  final Map<String, double> netBalance;     // Balance neto final por persona
+                                            // positivo = le deben
+                                            // negativo = debe
+                                            // (clave = personId)
 
   const Settlement({
     required this.periodStart,

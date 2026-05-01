@@ -17,11 +17,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// didChangeDependencies se llama cuando cambia algún provider que
+  /// este widget escucha. Lo usamos para detectar el cierre de período
+  /// y navegar a SettlementScreen sin bloquear el build.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final flat = context.watch<FlatProvider>();
     if (flat.periodJustClosed) {
+      // addPostFrameCallback garantiza que la navegación ocurre después
+      // de que el build actual termine, evitando errores de Flutter
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.push(
@@ -42,11 +47,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final periodExpenses = expenseProvider.currentPeriodExpenses();
 
     return Scaffold(
-      // ── Drawer ───────────────────────────────────────────────────
+      // ── Drawer lateral ───────────────────────────────────────────
       drawer: _FlatsDrawer(
         flats: flatProvider.flats,
         activeFlatId: config.id,
         onSwitch: (id) async {
+          // Al cambiar de piso, ExpenseProvider detecta el cambio de ID
+          // y recarga los gastos automáticamente
           await flatProvider.switchFlat(id);
           if (context.mounted) Navigator.pop(context);
         },
@@ -85,8 +92,8 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
 
-      // ── AppBar ───────────────────────────────────────────────────
       appBar: AppBar(
+        // El título del AppBar muestra el nombre del piso activo
         title: Text(config.name),
         centerTitle: true,
         actions: [
@@ -122,9 +129,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      // ── Body ─────────────────────────────────────────────────────
       body: Column(
         children: [
+          // Banner con la fecha simulada y los controles de simulación
           _DateBanner(today: today, periodStart: start, periodEnd: end),
           Expanded(
             child: periodExpenses.isEmpty
@@ -166,7 +173,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Drawer de pisos ────────────────────────────────────────────────
+/// Drawer que lista todos los pisos guardados y permite cambiar entre ellos.
+/// Se extrae como widget separado para mantener el build() de HomeScreen limpio.
 class _FlatsDrawer extends StatelessWidget {
   final List<dynamic> flats;
   final String activeFlatId;
@@ -204,49 +212,46 @@ class _FlatsDrawer extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
-              children: [
-                ...flats.map((flat) {
-                  final isActive = flat.id == activeFlatId;
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isActive
-                          ? cs.primary
-                          : cs.surfaceVariant,
-                      child: Icon(
-                        Icons.home,
+              children: flats.map((flat) {
+                final isActive = flat.id == activeFlatId;
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        isActive ? cs.primary : cs.surfaceVariant,
+                    child: Icon(Icons.home,
                         color: isActive
                             ? cs.onPrimary
                             : cs.onSurfaceVariant,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(flat.name,
-                        style: TextStyle(
-                            fontWeight: isActive
-                                ? FontWeight.bold
-                                : FontWeight.normal)),
-                    subtitle: Text(
-                        '${flat.people.length} personas · ${flat.billingDayLabel}'),
-                    selected: isActive,
-                    selectedTileColor: cs.primaryContainer.withOpacity(0.3),
-                    onTap: isActive ? null : () => onSwitch(flat.id),
-                    trailing: isActive
-                        ? const Icon(Icons.check, size: 18)
-                        : null,
-                  );
-                }),
-              ],
+                        size: 20),
+                  ),
+                  title: Text(flat.name,
+                      style: TextStyle(
+                          fontWeight: isActive
+                              ? FontWeight.bold
+                              : FontWeight.normal)),
+                  subtitle: Text(
+                      '${flat.people.length} personas · ${flat.billingDayLabel}'),
+                  selected: isActive,
+                  selectedTileColor:
+                      cs.primaryContainer.withOpacity(0.3),
+                  // El piso activo no es tappable (ya estás en él)
+                  onTap: isActive ? null : () => onSwitch(flat.id),
+                  trailing:
+                      isActive ? const Icon(Icons.check, size: 18) : null,
+                );
+              }).toList(),
             ),
           ),
           const Divider(height: 1),
+          // Opciones fijas al fondo del drawer
           ListTile(
             leading: const Icon(Icons.add_home),
             title: const Text('Nuevo piso'),
             onTap: onNew,
           ),
           ListTile(
-            leading:
-                const Icon(Icons.delete_outline, color: Colors.redAccent),
+            leading: const Icon(Icons.delete_outline,
+                color: Colors.redAccent),
             title: const Text('Eliminar piso actual',
                 style: TextStyle(color: Colors.redAccent)),
             onTap: onDelete,
@@ -258,7 +263,7 @@ class _FlatsDrawer extends StatelessWidget {
   }
 }
 
-// ── Banner de fecha ───────────────────────────────────────────────
+/// Banner superior con la fecha simulada y los botones de control de simulación.
 class _DateBanner extends StatelessWidget {
   final DateTime today;
   final DateTime periodStart;
@@ -274,6 +279,8 @@ class _DateBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    // context.read en lugar de watch porque este widget no necesita
+    // reconstruirse, solo ejecutar acciones
     final flat = context.read<FlatProvider>();
 
     return Container(

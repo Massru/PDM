@@ -16,6 +16,8 @@ class _SetupScreenState extends State<SetupScreen> {
   int _numPeople = 2;
   final List<TextEditingController> _nameControllers = [];
   final Set<String> _selectedCategories = {};
+  // Mapa de controladores para los importes: se crea/destruye dinámicamente
+  // al seleccionar/deseleccionar categorías
   final Map<String, TextEditingController> _amountControllers = {};
   int _billingDay = 1;
 
@@ -27,6 +29,8 @@ class _SetupScreenState extends State<SetupScreen> {
     _syncAmountControllers();
   }
 
+  /// Recrea los controladores de nombres cuando cambia el número de personas.
+  /// Importante: hacer dispose() de los anteriores para evitar memory leaks.
   void _rebuildControllers() {
     for (final c in _nameControllers) c.dispose();
     _nameControllers.clear();
@@ -35,6 +39,9 @@ class _SetupScreenState extends State<SetupScreen> {
     }
   }
 
+  /// Sincroniza los controladores de importe con las categorías seleccionadas.
+  /// - Añade controladores para categorías nuevamente seleccionadas
+  /// - Elimina y hace dispose() de los de categorías deseleccionadas
   void _syncAmountControllers() {
     for (final cat in _selectedCategories) {
       _amountControllers.putIfAbsent(cat, () => TextEditingController());
@@ -59,14 +66,17 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final names = _nameControllers.map((c) => c.text.trim()).toList();
+
+    // Recogemos los importes, usando 0.0 si el campo está vacío
     final amounts = <String, double>{};
     for (final cat in _selectedCategories) {
       final raw = _amountControllers[cat]?.text.replaceAll(',', '.') ?? '';
       amounts[cat] = double.tryParse(raw) ?? 0.0;
     }
+
     await context.read<FlatProvider>().setupFlat(
           flatName: _flatNameCtrl.text.trim().isEmpty
-              ? 'Mi piso'
+              ? 'Mi piso'           // nombre por defecto si se deja vacío
               : _flatNameCtrl.text.trim(),
           names: names,
           fixedCategories: _selectedCategories.toList(),
@@ -79,6 +89,9 @@ class _SetupScreenState extends State<SetupScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Opciones del selector de día: 1-28 + "último día del mes"
+    // Limitamos a 28 para que funcione en todos los meses sin ajustes,
+    // y el valor 0 es el código especial para "último día del mes"
     final billingDayItems = [
       ...List.generate(
         28,
@@ -140,11 +153,12 @@ class _SetupScreenState extends State<SetupScreen> {
               ],
             ),
 
-            // ── Nombres ──────────────────────────────────────────────
+            // ── Nombres de los inquilinos ────────────────────────────
             const SizedBox(height: 16),
             Text('Nombres de los inquilinos:',
                 style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
+            // List.generate crea los campos dinámicamente según _numPeople
             ...List.generate(
               _numPeople,
               (i) => Padding(
@@ -174,6 +188,8 @@ class _SetupScreenState extends State<SetupScreen> {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
+
+            // FilterChips: selección múltiple de categorías
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -191,18 +207,20 @@ class _SetupScreenState extends State<SetupScreen> {
                         } else {
                           _selectedCategories.remove(cat);
                         }
+                        // Sincronizamos los controladores de importe
                         _syncAmountControllers();
                       }),
                     ),
                   )
                   .toList(),
             ),
+
+            // Campos de importe: aparecen solo si hay categorías seleccionadas
             if (_selectedCategories.isNotEmpty) ...[
               const SizedBox(height: 14),
               Container(
                 decoration: BoxDecoration(
-                  color:
-                      theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.all(14),
@@ -230,8 +248,8 @@ class _SetupScreenState extends State<SetupScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.isEmpty) return null;
-                            final n = double.tryParse(
-                                v.replaceAll(',', '.'));
+                            final n =
+                                double.tryParse(v.replaceAll(',', '.'));
                             if (n == null || n < 0)
                               return 'Importe no válido';
                             return null;
@@ -259,7 +277,6 @@ class _SetupScreenState extends State<SetupScreen> {
               onChanged: (v) => setState(() => _billingDay = v!),
             ),
 
-            // ── Botón ────────────────────────────────────────────────
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: _submit,

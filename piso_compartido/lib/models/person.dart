@@ -1,6 +1,10 @@
+/// Representa a un inquilino del piso.
+/// Usamos un ID único (uuid) en lugar del nombre como identificador
+/// porque dos personas pueden llamarse igual, y además permite
+/// renombrar sin romper referencias en los gastos.
 class Person {
-  final String id;
-  final String name;
+  final String id;   // UUID generado al crear el piso
+  final String name; // Nombre visible en la UI
 
   const Person({required this.id, required this.name});
 

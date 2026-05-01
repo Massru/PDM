@@ -1,36 +1,49 @@
 import 'package:intl/intl.dart';
 
+/// Utilidades de fecha para el cálculo de períodos de facturación.
+/// Esta es una de las partes más delicadas de la app porque los meses
+/// tienen distinto número de días y hay que manejar el caso especial
+/// del "último día del mes".
 class AppDateUtils {
   static final _fmt = DateFormat('dd/MM/yyyy');
 
   static String format(DateTime dt) => _fmt.format(dt);
 
-  /// Último día real de un mes dado
+  /// Devuelve el último día real de un mes.
+  /// El truco: DateTime(año, mes+1, 0) es el día 0 del mes siguiente,
+  /// que equivale al último día del mes actual.
   static int lastDayOf(int year, int month) =>
       DateTime(year, month + 1, 0).day;
 
-  /// Resuelve el día de cierre real para un año/mes concreto.
-  /// billingDay == 0 → último día del mes.
-  /// billingDay > días del mes → último día del mes.
+  /// Resuelve el día de cierre real para un mes concreto.
+  /// Maneja dos casos especiales:
+  ///   - billingDay == 0: último día del mes (valor especial de la app)
+  ///   - billingDay > días del mes: se ajusta al último día disponible
+  ///     ej: billingDay=31 en febrero → día 28/29
   static int resolvedBillingDay(int billingDay, int year, int month) {
     if (billingDay == 0) return lastDayOf(year, month);
     final last = lastDayOf(year, month);
     return billingDay > last ? last : billingDay;
   }
 
-  /// Devuelve [start, end) del período que contiene [today].
+  /// Calcula el inicio y fin del período de facturación que contiene [today].
   ///
-  /// El período va desde el día [billingDay]+1 del mes anterior
-  /// hasta el día [billingDay] del mes actual (inclusive, a las 23:59:59).
+  /// LÓGICA DEL PERÍODO:
+  /// El período va desde el día siguiente al cierre del mes anterior
+  /// hasta el día de cierre del mes actual (inclusive).
   ///
-  /// Ejemplo con billingDay=25 y today=10 de febrero:
-  ///   start = 26 de enero, end = 25 de febrero 23:59:59
+  /// Ejemplo con billingDay=25:
+  ///   Si hoy es 10 de febrero:
+  ///     → El cierre de este mes es el 25 de febrero
+  ///     → Como aún no llegamos al cierre, el período actual es:
+  ///        start = 26 de enero, end = 25 de febrero 23:59:59
   ///
-  /// Ejemplo con billingDay=25 y today=28 de febrero:
-  ///   start = 26 de febrero, end = 25 de marzo 23:59:59
+  ///   Si hoy es 28 de febrero (ya pasamos el cierre del 25):
+  ///     → El período actual ya empezó el 26 de febrero:
+  ///        start = 26 de febrero, end = 25 de marzo 23:59:59
   static (DateTime start, DateTime end) currentPeriod(
       int billingDay, DateTime today) {
-    // Día de cierre en el mes actual
+    // Día de cierre ajustado al mes actual
     final closingThisMonth =
         resolvedBillingDay(billingDay, today.year, today.month);
 
@@ -38,30 +51,34 @@ class AppDateUtils {
     final DateTime periodStart;
 
     if (today.day <= closingThisMonth) {
-      // Todavía no hemos llegado al cierre: el período acaba este mes
-      periodEnd = DateTime(today.year, today.month, closingThisMonth, 23, 59, 59);
+      // Todavía estamos dentro del período que cierra este mes
+      periodEnd = DateTime(
+          today.year, today.month, closingThisMonth, 23, 59, 59);
 
-      // El inicio es el día siguiente al cierre del mes anterior
+      // El período empezó el día siguiente al cierre del mes anterior
       final prevMonthDate = DateTime(today.year, today.month - 1, 1);
       final closingPrevMonth = resolvedBillingDay(
           billingDay, prevMonthDate.year, prevMonthDate.month);
       periodStart = DateTime(
           prevMonthDate.year, prevMonthDate.month, closingPrevMonth + 1);
     } else {
-      // Ya pasó el cierre: el período empieza en el día siguiente al cierre de este mes
-      periodStart = DateTime(today.year, today.month, closingThisMonth + 1);
+      // Ya pasó el cierre: estamos en el siguiente período
+      periodStart =
+          DateTime(today.year, today.month, closingThisMonth + 1);
 
-      // Y acaba el día de cierre del mes siguiente
       final nextMonthDate = DateTime(today.year, today.month + 1, 1);
       final closingNextMonth = resolvedBillingDay(
           billingDay, nextMonthDate.year, nextMonthDate.month);
-      periodEnd = DateTime(
-          nextMonthDate.year, nextMonthDate.month, closingNextMonth, 23, 59, 59);
+      periodEnd = DateTime(nextMonthDate.year, nextMonthDate.month,
+          closingNextMonth, 23, 59, 59);
     }
 
     return (periodStart, periodEnd);
   }
 
+  /// Comprueba si una fecha concreta cae dentro del período activo.
+  /// Usamos !isBefore y !isAfter en lugar de isAfter e isBefore
+  /// para que los extremos del período sean inclusivos.
   static bool isInCurrentPeriod(
       DateTime date, int billingDay, DateTime today) {
     final (start, end) = currentPeriod(billingDay, today);

@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import '../providers/flat_provider.dart';
 import 'setup_screen.dart';
 
+/// Pantalla inicial de la app. Se muestra cuando no hay ningún piso activo.
+/// Tiene dos estados:
+///   - Sin pisos guardados: solo muestra logo y botón de añadir
+///   - Con pisos guardados: además lista los pisos para acceso rápido
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
@@ -35,9 +39,9 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // ── Nombre de la app ───────────────────────────────────
+              // ── Nombre y subtítulo ─────────────────────────────────
               Text(
-                'Piso Compartido',
+                'PisoGastos',
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: cs.primary,
@@ -46,15 +50,16 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Gestiona los gastos de tu piso\nde forma sencilla',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(color: cs.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
 
               const Spacer(flex: 2),
 
-              // ── Lista de pisos guardados (si hay) ──────────────────
+              // ── Lista de pisos guardados ───────────────────────────
+              // Consumer solo reconstruye esta parte cuando cambia FlatProvider,
+              // no toda la pantalla
               Consumer<FlatProvider>(
                 builder: (context, flat, _) {
                   if (flat.flats.isEmpty) return const SizedBox.shrink();
@@ -62,9 +67,11 @@ class WelcomeScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Pisos guardados',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                              color: cs.onSurfaceVariant)),
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(color: cs.onSurfaceVariant)),
                       const SizedBox(height: 8),
+                      // Al tocar un piso, switchFlat lo activa y el Consumer
+                      // en main.dart navega automáticamente a HomeScreen
                       ...flat.flats.map(
                         (f) => Card(
                           margin: const EdgeInsets.only(bottom: 8),
@@ -79,8 +86,8 @@ class WelcomeScreen extends StatelessWidget {
                                     fontWeight: FontWeight.w600)),
                             subtitle: Text(
                                 '${f.people.length} personas · ${f.billingDayLabel}'),
-                            trailing: const Icon(Icons.arrow_forward_ios,
-                                size: 16),
+                            trailing: const Icon(
+                                Icons.arrow_forward_ios, size: 16),
                             onTap: () => flat.switchFlat(f.id),
                           ),
                         ),
@@ -91,7 +98,7 @@ class WelcomeScreen extends StatelessWidget {
                 },
               ),
 
-              // ── Botón añadir piso ──────────────────────────────────
+              // ── Botón principal ────────────────────────────────────
               FilledButton.icon(
                 onPressed: () => Navigator.push(
                   context,
