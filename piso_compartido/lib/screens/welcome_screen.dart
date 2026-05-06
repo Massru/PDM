@@ -41,7 +41,7 @@ class WelcomeScreen extends StatelessWidget {
 
               // ── Nombre y subtítulo ─────────────────────────────────
               Text(
-                'PisoGastos',
+                'Piso Compartido',
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: cs.primary,

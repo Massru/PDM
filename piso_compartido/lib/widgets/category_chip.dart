@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/expense.dart';
 
+/// Widget reutilizable para mostrar una categoría de gasto como chip.
+/// Usado en filtros y selección de categorías.
+///
+/// La diferencia con un FilterChip genérico es que incluye un icono
+/// que varía según si la categoría es fija (factura) o variable (compra).
 class CategoryChip extends StatelessWidget {
   final ExpenseCategory category;
   final bool selected;
@@ -19,6 +24,8 @@ class CategoryChip extends StatelessWidget {
       label: Text(category.label),
       selected: selected,
       onSelected: onSelected,
+      // El icono distingue visualmente entre gastos fijos y variables:
+      // receipt = factura (fijo), shopping_cart = compra (variable)
       avatar: Icon(
         category.isFixed ? Icons.receipt : Icons.shopping_cart,
         size: 16,

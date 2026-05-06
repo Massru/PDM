@@ -16,8 +16,6 @@ class _SetupScreenState extends State<SetupScreen> {
   int _numPeople = 2;
   final List<TextEditingController> _nameControllers = [];
   final Set<String> _selectedCategories = {};
-  // Mapa de controladores para los importes: se crea/destruye dinámicamente
-  // al seleccionar/deseleccionar categorías
   final Map<String, TextEditingController> _amountControllers = {};
   int _billingDay = 1;
 
@@ -29,8 +27,6 @@ class _SetupScreenState extends State<SetupScreen> {
     _syncAmountControllers();
   }
 
-  /// Recrea los controladores de nombres cuando cambia el número de personas.
-  /// Importante: hacer dispose() de los anteriores para evitar memory leaks.
   void _rebuildControllers() {
     for (final c in _nameControllers) c.dispose();
     _nameControllers.clear();
@@ -39,9 +35,6 @@ class _SetupScreenState extends State<SetupScreen> {
     }
   }
 
-  /// Sincroniza los controladores de importe con las categorías seleccionadas.
-  /// - Añade controladores para categorías nuevamente seleccionadas
-  /// - Elimina y hace dispose() de los de categorías deseleccionadas
   void _syncAmountControllers() {
     for (final cat in _selectedCategories) {
       _amountControllers.putIfAbsent(cat, () => TextEditingController());
@@ -65,33 +58,35 @@ class _SetupScreenState extends State<SetupScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final names = _nameControllers.map((c) => c.text.trim()).toList();
 
-    // Recogemos los importes, usando 0.0 si el campo está vacío
+    final names = _nameControllers.map((c) => c.text.trim()).toList();
     final amounts = <String, double>{};
     for (final cat in _selectedCategories) {
       final raw = _amountControllers[cat]?.text.replaceAll(',', '.') ?? '';
       amounts[cat] = double.tryParse(raw) ?? 0.0;
     }
 
-    await context.read<FlatProvider>().setupFlat(
-          flatName: _flatNameCtrl.text.trim().isEmpty
-              ? 'Mi piso'           // nombre por defecto si se deja vacío
-              : _flatNameCtrl.text.trim(),
-          names: names,
-          fixedCategories: _selectedCategories.toList(),
-          fixedAmounts: amounts,
-          billingDay: _billingDay,
-        );
+    final flatProvider = context.read<FlatProvider>();
+
+    await flatProvider.setupFlat(
+      flatName: _flatNameCtrl.text.trim().isEmpty
+          ? 'Mi piso'
+          : _flatNameCtrl.text.trim(),
+      names: names,
+      fixedCategories: _selectedCategories.toList(),
+      fixedAmounts: amounts,
+      billingDay: _billingDay,
+    );
+
+    await flatProvider.deactivateFlat();
+
+    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Opciones del selector de día: 1-28 + "último día del mes"
-    // Limitamos a 28 para que funcione en todos los meses sin ajustes,
-    // y el valor 0 es el código especial para "último día del mes"
     final billingDayItems = [
       ...List.generate(
         28,
@@ -158,7 +153,6 @@ class _SetupScreenState extends State<SetupScreen> {
             Text('Nombres de los inquilinos:',
                 style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            // List.generate crea los campos dinámicamente según _numPeople
             ...List.generate(
               _numPeople,
               (i) => Padding(
@@ -188,8 +182,6 @@ class _SetupScreenState extends State<SetupScreen> {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
-
-            // FilterChips: selección múltiple de categorías
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -207,20 +199,18 @@ class _SetupScreenState extends State<SetupScreen> {
                         } else {
                           _selectedCategories.remove(cat);
                         }
-                        // Sincronizamos los controladores de importe
                         _syncAmountControllers();
                       }),
                     ),
                   )
                   .toList(),
             ),
-
-            // Campos de importe: aparecen solo si hay categorías seleccionadas
             if (_selectedCategories.isNotEmpty) ...[
               const SizedBox(height: 14),
               Container(
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                  color:
+                      theme.colorScheme.surfaceVariant.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.all(14),
@@ -230,32 +220,63 @@ class _SetupScreenState extends State<SetupScreen> {
                     Text('Importe mensual por categoría:',
                         style: theme.textTheme.bodyMedium
                             ?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Los gastos fijos marcados con * son obligatorios.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
                     const SizedBox(height: 10),
                     ..._selectedCategories.map(
-                      (cat) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: TextFormField(
-                          controller: _amountControllers[cat],
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            labelText: cat,
-                            border: const OutlineInputBorder(),
-                            suffixText: '€',
-                            isDense: true,
+                      (cat) {
+                        // Una categoría es "fija" si está en la lista
+                        // de categorías fijas por defecto
+                        final isFixed = AppConstants
+                            .defaultFixedCategories
+                            .contains(cat);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: TextFormField(
+                            controller: _amountControllers[cat],
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            decoration: InputDecoration(
+                              // El asterisco indica campo obligatorio
+                              hintText: '0.00',
+                              labelText:
+                                  isFixed ? '$cat *' : cat,
+                              border: const OutlineInputBorder(),
+                              suffixText: '€',
+                              isDense: true,
+                            ),
+                            validator: (v) {
+                              final raw =
+                                  v?.replaceAll(',', '.') ?? '';
+                              final n = double.tryParse(raw);
+
+                              if (isFixed) {
+                                // Para gastos fijos el importe
+                                // es obligatorio y debe ser > 0
+                                if (raw.isEmpty || n == null) {
+                                  return 'Introduce el importe';
+                                }
+                                if (n <= 0) {
+                                  return 'Debe ser mayor que 0';
+                                }
+                              } else {
+                                // Para gastos variables es opcional,
+                                // pero si se rellena debe ser válido
+                                if (raw.isNotEmpty &&
+                                    (n == null || n < 0)) {
+                                  return 'Importe no válido';
+                                }
+                              }
+                              return null;
+                            },
                           ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return null;
-                            final n =
-                                double.tryParse(v.replaceAll(',', '.'));
-                            if (n == null || n < 0)
-                              return 'Importe no válido';
-                            return null;
-                          },
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -277,6 +298,7 @@ class _SetupScreenState extends State<SetupScreen> {
               onChanged: (v) => setState(() => _billingDay = v!),
             ),
 
+            // ── Botón ────────────────────────────────────────────────
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: _submit,
